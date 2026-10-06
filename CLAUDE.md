@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `docs/PLANO.md` (seção Status) diz em que fase o projeto está. `DESAFIOS.md` lista armadilhas já vividas.
 - `docs/constitution.md` são as regras não negociáveis. Toda spec, plano e PR deve respeitá-las.
-- `README.md` ainda é o enunciado do desafio, não a documentação do projeto. Ele será substituído na Fase 7 (ver Entregável em `docs/enunciado-original.md`).
+- `README.md` é a documentação de entrega (Arquitetura, Garantias, Como rodar). O enunciado do desafio está em `docs/enunciado-original.md`. A seção Garantias cita trechos literais do código: ao mudar um desses trechos, atualize o README (o avaliador confere no passo 15).
 
 ## Comandos
 
@@ -29,7 +29,7 @@ uv run pre-commit run --all-files          # hooks fora do commit
 
 ## Estado atual
 
-Fases 1–7 implementadas (PR #7 mergeado em `develop`). 110+ testes passam sem chave de API. `scripts/e2e_avaliador.py` reproduz o fluxo do avaliador contra a API no ar. Pendente: E2E com Gemini real num clone limpo e release `v1.0.0` (`release/*` → `main`, com tag). Revisão geral em `docs/REVISAO-ENTREGA.md`.
+Fases 1–7 implementadas e E2E real com Gemini (`gemini-3.5-flash-lite`) passando em clone limpo: 14 passos, 0 falhas. 114 testes passam sem chave de API. `scripts/e2e_avaliador.py` reproduz o fluxo do avaliador contra a API no ar. Release `v1.0.0` na `main`, com tag.
 
 ## Comandos extras
 
