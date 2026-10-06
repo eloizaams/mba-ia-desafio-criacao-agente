@@ -62,3 +62,13 @@ Com uma instância compartilhada, o sub-agente também enxergava
 `E501` em f-string de uma linha não é corrigido por nenhum dos dois. Extrair a
 expressão para uma variável antes. Ordem certa: `ruff format` **depois**
 `ruff check --fix`.
+
+## Ambiente de testes com Gemini
+
+### Chave válida, mas sem crédito: `402 RESOURCE_EXHAUSTED`
+A chave autentica e a requisição chega ao modelo, mas o projeto do AI Studio
+está sem crédito pré-pago. A resposta é `402 ... Your prepayment credits are
+depleted`. O erro aparece na primeira chamada ao modelo, então o spike falha
+no meio do `abrir` e pode deixar uma sessão pela metade no banco.
+**Saída:** conferir o crédito em `ai.studio/projects` antes de rodar os testes
+reais. Para descartar a sessão pela metade, apague `spike/spike_sessoes.db`.
