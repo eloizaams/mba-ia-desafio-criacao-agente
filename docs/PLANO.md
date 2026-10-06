@@ -9,7 +9,7 @@
 - [x] Fase 3 — Domínio + persistência + restauração (`feature/dominio-persistencia`): domínio, portas, SQLite com índice parcial, `aurora-restore`, testes. Spec em [`docs/specs/001-dominio-persistencia/`](specs/001-dominio-persistencia/spec.md).
 - [x] Fase 4 — Tools + agentes (`feature/agentes`): casos de uso, tools sem apartamento, topologia (root + 2 especialistas + regulamento como `AgentTool`), confirmações derivadas dos eventos, 80 testes sem chave de API. Spec em [`docs/specs/002-tools-agentes/`](specs/002-tools-agentes/spec.md).
 - [x] Fase 5 — API (`feature/api`): spec em [`docs/specs/003-api/`](specs/003-api/spec.md). FastAPI com 6 rotas, `aurora-api`, `aurora-restore --sessoes`, 108 testes passando sem chave de API. Smoke com Gemini real pendente.
-- [ ] Fase 6 — Concorrência e hardening das garantias (`feature/garantias`)
+- [x] Fase 6 — Concorrência e hardening das garantias (`feature/garantias`): spec em [`docs/specs/004-garantias/`](specs/004-garantias/spec.md). Revisão adversarial das 5 garantias (todos os vetores cobertos pelos testes existentes) e teste de disputa pela API (passo 14: ambas retornam 200, exatamente 1 reserva). 110 testes passando.
 - [ ] Fase 7 — E2E do avaliador, README final, release `v1.0.0`
 
 ## Decisões (ADR resumido)
