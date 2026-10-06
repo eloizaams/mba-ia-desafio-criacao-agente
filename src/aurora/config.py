@@ -14,6 +14,17 @@ def database_path() -> Path:
     return Path(os.environ.get("AURORA_DB_PATH") or CAMINHO_BANCO_PADRAO)
 
 
+def sessions_path(banco: Path) -> Path:
+    """Arquivo das sessões ADK, ao lado do banco do condomínio.
+
+    Arquivos separados: o `SqliteSessionService` (aiosqlite) segura transações abertas
+    enquanto o event loop atende outras requisições. Se dividisse o arquivo com o
+    adaptador síncrono, as escritas do domínio esperariam o lock até estourar
+    "database is locked" (500 no passo 14 do avaliador).
+    """
+    return banco.with_name(banco.name + ".sessoes")
+
+
 def regulamento_path() -> Path:
     return Path(os.environ.get("AURORA_REGULAMENTO_PATH") or CAMINHO_REGULAMENTO_PADRAO)
 

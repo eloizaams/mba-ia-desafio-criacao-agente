@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 from aurora.adapters.persistence.connection import open_connection
 from aurora.adapters.persistence.schema import create_schema
-from aurora.config import database_path
+from aurora.config import database_path, sessions_path
 from aurora.domain.reserva import StatusReserva
 
 DADOS_PADRAO = Path("dados")
@@ -33,18 +33,11 @@ _INSERT_VISITANTE = (
 )
 
 
-_ADK_SESSION_TABLES = ("events", "sessions", "user_states", "app_states")
-
-
 def apagar_sessoes(database: Path) -> None:
-    """Remove as tabelas do SqliteSessionService, se existirem."""
-    connection = open_connection(database)
-    try:
-        with connection:
-            for tabela in _ADK_SESSION_TABLES:
-                connection.execute(f"DROP TABLE IF EXISTS {tabela}")
-    finally:
-        connection.close()
+    """Remove o arquivo de sessões do ADK (e os auxiliares do WAL), se existir."""
+    arquivo = sessions_path(database)
+    for sufixo in ("", "-wal", "-shm"):
+        arquivo.with_name(arquivo.name + sufixo).unlink(missing_ok=True)
 
 
 def restaurar(database: Path, dados: Path, sessoes: bool = False) -> None:
@@ -53,7 +46,7 @@ def restaurar(database: Path, dados: Path, sessoes: bool = False) -> None:
     - Reservas ativas da conversa são removidas e as do seed são recarregadas.
     - Reservas canceladas fora do seed ficam como histórico: o código nunca é reaproveitado.
     - Visitantes são recarregados do zero.
-    Com `sessoes=True`, apaga também as tabelas do SqliteSessionService.
+    Com `sessoes=True`, apaga também o arquivo de sessões do ADK.
     O schema é criado antes da transação, porque executescript fecha qualquer transação aberta.
     """
     apartamentos = _read_json(dados / "apartamentos.json")

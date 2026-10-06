@@ -111,7 +111,7 @@ def apartamento_da_sessao(tool_context: ToolContext) -> str:
 
 **Trecho:**
 ```python
-# app.py — sessões e eventos persistidos no mesmo SQLite dos dados do condomínio
+# app.py — sessões e eventos persistidos num SQLite ao lado do banco do condomínio (`aurora.db.sessoes`)
 return Runner(
     app=construir_app(banco=caminho, regulamento=regulamento, modelo=modelo),
     session_service=SqliteSessionService(db_path=str(caminho)),
@@ -256,6 +256,6 @@ uv run pytest
 
 ## Armazenamento
 
-SQLite (`aurora.db` por padrão). O arquivo guarda dados do condomínio (áreas, apartamentos, reservas, visitantes) e as sessões ADK (`SqliteSessionService`). Nenhum serviço externo é necessário.
+SQLite (`aurora.db` por padrão). `aurora.db` guarda os dados do condomínio (áreas, apartamentos, reservas, visitantes); `aurora.db.sessoes`, as sessões ADK (`SqliteSessionService`). Nenhum serviço externo é necessário.
 
 Os arquivos em `dados/` são somente leitura e representam o estado inicial; `aurora-restore` recria o banco a partir deles.

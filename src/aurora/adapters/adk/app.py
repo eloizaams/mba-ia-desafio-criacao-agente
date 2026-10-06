@@ -22,7 +22,7 @@ from aurora.adapters.regulamento import RegulamentoArquivo
 from aurora.application.regulamento import RegulamentoService
 from aurora.application.reservas import ReservasService
 from aurora.application.visitantes import VisitantesService
-from aurora.config import database_path, regulamento_path
+from aurora.config import database_path, regulamento_path, sessions_path
 
 
 def construir_app(
@@ -57,7 +57,7 @@ def construir_runner(
     regulamento: Path | None = None,
     modelo: ModeloPorAgente = modelo_do_ambiente,
 ) -> Runner:
-    """Runner com as sessões no mesmo SQLite dos dados do condomínio.
+    """Runner com as sessões num SQLite ao lado do banco do condomínio (`sessions_path`).
 
     `SqliteSessionService`, não `DatabaseSessionService`: o segundo exige o extra
     `google-adk[db]` (SQLAlchemy), que o projeto não instala (DESAFIOS.md).
@@ -65,5 +65,5 @@ def construir_runner(
     caminho = banco or database_path()
     return Runner(
         app=construir_app(banco=caminho, regulamento=regulamento, modelo=modelo),
-        session_service=SqliteSessionService(db_path=str(caminho)),
+        session_service=SqliteSessionService(db_path=str(sessions_path(caminho))),
     )

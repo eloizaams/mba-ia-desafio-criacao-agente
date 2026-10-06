@@ -8,6 +8,7 @@ import pytest
 
 from aurora.adapters.persistence.restore import restaurar
 from aurora.adapters.persistence.sqlite import SqliteRepository
+from aurora.config import sessions_path
 from aurora.domain.erros import DataIndisponivel
 
 DADOS = Path(__file__).parents[2] / "dados"
@@ -118,44 +119,34 @@ def test_seed_continua_bloqueando_a_data_depois_do_restore(tmp_path: Path) -> No
         repo.gravar_reserva("201", "quadra", date(2030, 3, 9))
 
 
-def _tabelas_adk(banco: Path) -> set[str]:
-    with sqlite3.connect(banco) as conn:
-        rows = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
-    return {row[0] for row in rows}
-
-
-async def test_restore_com_sessoes_apaga_tabelas_adk(tmp_path: Path) -> None:
-    """--sessoes apaga events, sessions, user_states, app_states."""
+async def _criar_sessao_adk(banco: Path) -> Path:
     from google.adk.sessions.sqlite_session_service import SqliteSessionService
 
+    arquivo = sessions_path(banco)
+    svc = SqliteSessionService(db_path=str(arquivo))
+    await svc.create_session(app_name="aurora", user_id="morador")
+    assert arquivo.exists()
+    return arquivo
+
+
+async def test_restore_com_sessoes_apaga_o_arquivo_de_sessoes(tmp_path: Path) -> None:
+    """--sessoes apaga o arquivo do SqliteSessionService, não o banco do condomínio."""
     banco = tmp_path / "aurora.db"
     restaurar(banco, DADOS)
-
-    svc = SqliteSessionService(db_path=str(banco))
-    await svc.create_session(app_name="aurora", user_id="morador")
-    tabelas_antes = _tabelas_adk(banco)
-    assert "sessions" in tabelas_antes
+    arquivo = await _criar_sessao_adk(banco)
 
     restaurar(banco, DADOS, sessoes=True)
 
-    tabelas_depois = _tabelas_adk(banco)
-    assert "sessions" not in tabelas_depois
-    assert "events" not in tabelas_depois
+    assert not arquivo.exists()
+    assert banco.exists()
 
 
-async def test_restore_sem_sessoes_mantem_tabelas_adk(tmp_path: Path) -> None:
+async def test_restore_sem_sessoes_mantem_o_arquivo_de_sessoes(tmp_path: Path) -> None:
     """Sem --sessoes, sessões ADK sobrevivem ao restore."""
-    from google.adk.sessions.sqlite_session_service import SqliteSessionService
-
     banco = tmp_path / "aurora.db"
     restaurar(banco, DADOS)
-
-    svc = SqliteSessionService(db_path=str(banco))
-    await svc.create_session(app_name="aurora", user_id="morador")
-    tabelas_antes = _tabelas_adk(banco)
-    assert "sessions" in tabelas_antes
+    arquivo = await _criar_sessao_adk(banco)
 
     restaurar(banco, DADOS, sessoes=False)
 
-    tabelas_depois = _tabelas_adk(banco)
-    assert "sessions" in tabelas_depois
+    assert arquivo.exists()
