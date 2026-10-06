@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from aurora.adapters.adk.resultados import erro_como_resultado, traduz_erro_de_dominio
+from aurora.adapters.adk.results import erro_como_resultado, traduz_erro_de_dominio
 from aurora.domain.erros import (
     AreaDesconhecida,
     DadoInvalido,

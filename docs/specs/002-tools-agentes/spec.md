@@ -18,7 +18,7 @@ Fora desta spec: rotas HTTP, serialização de eventos para JSON, 404/409 (Fase 
 | Garantia | Onde fica, nesta fase |
 |---|---|
 | G1 Confirmação | `require_confirmation` nas tools de escrita: callable (`taxa > 0`) em `reservar`, `True` em `autorizar_visitante`. O pedido é do ADK; a tool não roda antes da resposta |
-| G2 Sessão = apartamento | `adapters/adk/estado.py`: o apartamento vem de `tool_context.state`. Nenhuma tool tem parâmetro de apartamento, e isso é um teste (`test_nenhuma_tool_aceita_apartamento`) |
+| G2 Sessão = apartamento | `adapters/adk/state.py`: o apartamento vem de `tool_context.state`. Nenhuma tool tem parâmetro de apartamento, e isso é um teste (`test_nenhuma_tool_aceita_apartamento`) |
 | G4 Regulamento | `regulamento` é `AgentTool` (sessão própria) e `consultar_regulamento` devolve só o capítulo pertinente. O agente principal não recebe o regulamento |
 | G5 Concorrência | já é da Fase 3 (constraint). Aqui só não se atrapalha: `DataIndisponivel` virar resultado normal da tool, nunca exceção |
 
@@ -59,7 +59,7 @@ Todas sem parâmetro de apartamento. `tool_context.state["apartamento"]` é a ú
 - **Tools síncronas.** O ADK 2.11.0 invoca tool síncrona dentro do loop de eventos (`_SYNC_CALLABLE_RUNNER` fica vazio). O efeito é serializar as gravações dentro do processo, o que não atrapalha a Garantia 5: a exclusividade é da constraint, e o `busy_timeout` cuida de escritas de outros processos ou threads. Manter síncrono evita embrulhar o repositório inteiro em `asyncio.to_thread` sem necessidade.
 - **Erro de domínio é resultado, não exceção.** Toda tool devolve `{"status": ..., "motivo": ...}`, pelo decorator `traduz_erro_de_dominio`. `DataIndisponivel` → `data_indisponivel`; `ReservaNaoEncontrada` → `nao_encontrada`; `AreaDesconhecida` → `area_desconhecida`; `DadoInvalido` → `invalido`; erro de domínio novo cai em `invalido`. Cada status tem uma linha na instrução do especialista, para o modelo saber o que dizer. Nenhuma exceção de domínio sobe para o `Runner`, e erro que **não** é de domínio continua subindo: defeito de programação não vira resultado para o modelo.
 - **A porta da confirmação responde "não cobra" para área inexistente.** `gera_cobranca` devolve `False` quando a área não existe, então um pedido com área inventada não gera pendência. É deliberado: `reservar` recusa com `area_desconhecida` antes de qualquer escrita, então não há ação a confirmar — confirmar um pedido impossível só confundiria o morador. Coberto por `test_area_inexistente_nao_pede_confirmacao_nem_grava`.
-- **Nomes.** Classes de serviço e o módulo de portas em inglês (`ReservasService`, `ports.py`), como manda a constituição ("termos técnicos em inglês"); o que nomeia conceito do enunciado continua em português (`reservas`, `visitantes`, `confirmacoes`, `sessoes`).
+- **Nomes.** Classes de serviço e o módulo de portas em inglês (`ReservasService`, `ports.py`), como manda a constituição ("termos técnicos em inglês"); o que nomeia conceito do enunciado continua em português (`reservas`, `visitantes`, `confirmacoes`, `sessoes`). Vale para módulo também: `ports.py`, `state.py` e `results.py` são termos técnicos.
 - **Uma instância de `ScriptedLlm` por agente nos testes.** Compartilhar a instância fez o especialista tentar transferir para si mesmo na Fase 2 (`DESAFIOS.md`). O papel é campo do modelo.
 
 ## Critérios de aceite

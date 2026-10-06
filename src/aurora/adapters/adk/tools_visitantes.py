@@ -5,8 +5,8 @@ from typing import Any
 from google.adk.tools.function_tool import FunctionTool
 from google.adk.tools.tool_context import ToolContext
 
-from aurora.adapters.adk.estado import apartamento_da_sessao
-from aurora.adapters.adk.resultados import traduz_erro_de_dominio
+from aurora.adapters.adk.results import traduz_erro_de_dominio
+from aurora.adapters.adk.state import apartamento_da_sessao
 from aurora.application.visitantes import VisitantesService
 
 

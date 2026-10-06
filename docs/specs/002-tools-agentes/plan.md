@@ -18,8 +18,8 @@ src/aurora/
     persistence/sqlite.py            # + listar() de áreas
     regulamento.py                   # RegulamentoArquivo: lê dados/regulamento.md (cache)
     adk/
-      estado.py                      # CHAVE_APARTAMENTO + apartamento_da_sessao(tool_context)
-      resultados.py                  # erro de domínio -> {"status", "motivo"}; decorator das tools
+      state.py                       # CHAVE_APARTAMENTO + apartamento_da_sessao(tool_context)
+      results.py                     # erro de domínio -> {"status", "motivo"}; decorator das tools
       sessoes.py                     # criar_sessao (grava o apartamento no state) e buscar_sessao
       tools_reservas.py              # fábrica: serviço -> lista de FunctionTool
       tools_visitantes.py
@@ -35,7 +35,7 @@ src/aurora/
 2. Portas novas e `listar()` de áreas no adaptador SQLite.
 3. Serviços de aplicação, com teste de integração sobre o SQLite real (fixture `repo` da Fase 3).
 4. `RegulamentoArquivo` + `RegulamentoService`.
-5. `estado.py` e as três fábricas de tools. Tool é fina: estado → serviço → `dict`.
+5. `state.py` e as três fábricas de tools. Tool é fina: estado → serviço → `dict`.
 6. `agentes.py` e `app.py`.
 7. `confirmacoes.py`, derivado dos eventos (call `adk_request_confirmation` sem resposta de mesmo id).
 8. `ScriptedLlm` por papel (`tests/support/`), substituindo o roteiro do spike.

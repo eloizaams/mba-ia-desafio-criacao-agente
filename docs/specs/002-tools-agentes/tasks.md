@@ -6,7 +6,7 @@
 - [x] `VisitantesService` (listar, autorizar)
 - [x] `RegulamentoArquivo` + `RegulamentoService`
 - [x] Testes de integração dos serviços sobre o SQLite real
-- [x] `adapters/adk/estado.py`: apartamento da sessão
+- [x] `adapters/adk/state.py`: apartamento da sessão
 - [x] Tools de reservas, visitantes e regulamento (fábricas que recebem o serviço)
 - [x] `require_confirmation`: callable (taxa > 0) em `reservar`, `True` em `autorizar_visitante`
 - [x] `agentes.py`: `aurora` (root) + `reservas`/`visitantes` como `sub_agents` + `regulamento` como `AgentTool`
@@ -41,7 +41,7 @@ e o `--sessoes` do `aurora-restore`.
 
 ## Depois do `code-review` (eixos Standards e Spec)
 
-- [x] Convenção PT/EN: `ServicoX` → `XService`, `portas.py` → `ports.py` (constituição, Convenções)
+- [x] Convenção PT/EN: `ServicoX` → `XService`, `portas.py` → `ports.py`, `estado.py` → `state.py`, `resultados.py` → `results.py` (constituição, Convenções)
 - [x] `ReservaFeita`: `reservar` devolve a reserva e se gera cobrança, com uma leitura só da área
 - [x] `traduz_erro_de_dominio`: o `try/except` repetido vira decorator (declaração do ADK conferida por teste)
 - [x] `REGRAS_COMUNS`: as duas regras repetidas nas três instruções ficam num lugar só
@@ -54,4 +54,4 @@ e o `--sessoes` do `aurora-restore`.
 - [x] Teste: `nao_encontrada` no cancelamento de reserva alheia (passo 4)
 - [x] Teste pelo `Runner`: segunda consulta ao regulamento por título, provada por asserção que cai sem ela
 - [x] `tests/support/condominio.py`: constantes do seed e `FabricaDeRunner` num lugar só
-- [x] `plan.md` atualizado com `sessoes.py`, `resultados.py` e os nomes novos
+- [x] `plan.md` atualizado com `sessoes.py`, `results.py` e os nomes novos

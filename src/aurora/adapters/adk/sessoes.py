@@ -11,7 +11,7 @@ O `user_id` do ADK é fixo. O enunciado não tem autenticação, e o apartamento
 from google.adk.runners import Runner
 from google.adk.sessions.session import Session
 
-from aurora.adapters.adk.estado import CHAVE_APARTAMENTO
+from aurora.adapters.adk.state import CHAVE_APARTAMENTO
 
 USUARIO = "morador"
 
