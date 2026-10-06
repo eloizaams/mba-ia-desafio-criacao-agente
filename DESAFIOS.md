@@ -172,3 +172,21 @@ dado vazou (a tool só vê a sessão), mas a frase informa errado e passa a
 impressão de que a garantia falhou. **Saída:** instrução dizendo que o resultado
 da tool é sempre do apartamento da sessão e não pode ser apresentado como sendo
 de outro. Depois disso a resposta virou "as reservas do seu apartamento são...".
+
+### `database is locked` (500) em aprovações simultâneas
+No E2E real, o passo 14 devolveu 500 em texto puro. Causa: `SqliteSessionService`
+(aiosqlite) e o repositório síncrono dividiam o mesmo arquivo. A tool síncrona roda
+no event loop; enquanto ela espera o lock, o loop não atende a transação aberta da
+sessão, e o `timeout` de 5 s estoura. O `IntegrityError` da Garantia 5 nunca chegou
+a acontecer. A suíte antiga não pegava: aprovava em sequência e o docstring chamava
+o lock de "intra-processo, inevitável". **Saída:** sessões num arquivo separado
+(`aurora.db.sessoes`, `sessions_path`); `aurora-restore --sessoes` apaga esse
+arquivo. `test_concorrencia_confirmacoes.py` dispara 6 aprovações com `asyncio.gather`.
+Bancos antigos deixam tabelas ADK órfãs em `aurora.db`; são inofensivas.
+
+### Fricções do E2E com terminal e processos
+- O passo 13 do `e2e_avaliador.py` usa `input()`: sem terminal (pipe, CI) dá `EOFError`.
+- `pkill -f aurora-api` pode casar com o próprio shell que contém o texto do comando e
+  matá-lo. Mate pelo PID.
+- `gemini-3.5-flash` deu 503 de alta demanda durante o E2E; `-lite` funcionou. Trocar
+  `AURORA_MODELO_*` no `.env` resolve.

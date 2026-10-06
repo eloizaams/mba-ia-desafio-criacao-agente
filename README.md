@@ -111,10 +111,10 @@ def apartamento_da_sessao(tool_context: ToolContext) -> str:
 
 **Trecho:**
 ```python
-# app.py — sessões e eventos persistidos no mesmo SQLite dos dados do condomínio
+# app.py — sessões e eventos persistidos num SQLite ao lado do banco do condomínio (`aurora.db.sessoes`)
 return Runner(
     app=construir_app(banco=caminho, regulamento=regulamento, modelo=modelo),
-    session_service=SqliteSessionService(db_path=str(caminho)),
+    session_service=SqliteSessionService(db_path=str(sessions_path(caminho))),
 )
 ```
 ```python
@@ -122,7 +122,7 @@ return Runner(
 App(name=NOME_RAIZ, root_agent=raiz, resumability_config=ResumabilityConfig(is_resumable=True))
 ```
 
-**Por que não depende do modelo**: `SqliteSessionService` persiste todos os eventos no mesmo arquivo SQLite que guarda reservas e visitantes. Reiniciar o processo não apaga nada; a sessão é localizada pelo `session_id` que a rota recebe, e o Runner lê o histórico completo do banco.
+**Por que não depende do modelo**: `SqliteSessionService` persiste todos os eventos em um arquivo SQLite próprio (`aurora.db.sessoes`), separado do que guarda reservas e visitantes. Reiniciar o processo não apaga nada; a sessão é localizada pelo `session_id` que a rota recebe, e o Runner lê o histórico completo do banco.
 
 ---
 
@@ -225,6 +225,8 @@ Para restaurar dados **e** apagar as sessões ADK (recomeçar do zero):
 uv run aurora-restore --sessoes
 ```
 
+Pare a API antes: apagar o arquivo de sessões com ela no ar deixa o processo preso ao arquivo antigo.
+
 ### Subir a API
 
 ```bash
@@ -256,6 +258,6 @@ uv run pytest
 
 ## Armazenamento
 
-SQLite (`aurora.db` por padrão). O arquivo guarda dados do condomínio (áreas, apartamentos, reservas, visitantes) e as sessões ADK (`SqliteSessionService`). Nenhum serviço externo é necessário.
+SQLite (`aurora.db` por padrão). `aurora.db` guarda os dados do condomínio (áreas, apartamentos, reservas, visitantes); `aurora.db.sessoes`, as sessões ADK (`SqliteSessionService`). Nenhum serviço externo é necessário.
 
 Os arquivos em `dados/` são somente leitura e representam o estado inicial; `aurora-restore` recria o banco a partir deles.

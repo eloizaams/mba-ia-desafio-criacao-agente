@@ -2,9 +2,8 @@
 
 Duas sessões (apartamentos 101 e 201) pedem a mesma área e data. Ambas ficam com
 confirmação pendente. As aprovações são despachadas sequencialmente — aprovações
-concorrentes causam SQLITE_LOCKED intra-processo (aiosqlite + sqlite3 síncrono no
-mesmo processo); a race condition ao nível de repositório é provada em
-`test_concorrencia_reserva.py` com threads e barreira.
+concorrentes estão em `test_concorrencia_confirmacoes.py`; a race condition ao nível de
+repositório é provada em `test_concorrencia_reserva.py` com threads e barreira.
 
 Este teste prova a propriedade que o avaliador confere no passo 14:
 - ambas as aprovações respondem HTTP 200 (a perdedora recebe `data_indisponivel`,
