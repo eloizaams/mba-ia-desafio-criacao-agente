@@ -43,7 +43,7 @@ O código do ADK 2.11 cita `gemini-2.5-flash` 32 vezes, mas a série 2.5 está
 Uma subclasse de `BaseLlm` que decide o turno **a partir do histórico**
 (`llm_request.contents`), não de um contador interno, permite testar confirmação,
 retomada e persistência de forma determinística e sobrevive ao reinício do
-processo. Ver `spike/scripted_llm.py`.
+processo. Ver `tests/support/scripted_llm.py` (veio do spike, tag `spike-fase-2`).
 
 **Armadilha:** um modelo roteirizado sem porta de saída reemite a mesma chamada
 para sempre e estoura `LlmCallsLimitExceededError: Max number of llm calls limit
@@ -71,7 +71,7 @@ está sem crédito pré-pago. A resposta é `402 ... Your prepayment credits are
 depleted`. O erro aparece na primeira chamada ao modelo, então o spike falha
 no meio do `abrir` e pode deixar uma sessão pela metade no banco.
 **Saída:** conferir o crédito em `ai.studio/projects` antes de rodar os testes
-reais. Para descartar a sessão pela metade, apague `spike/spike_sessoes.db`.
+reais. Para descartar a sessão pela metade, apague o `spike_sessoes.db` do worktree do spike.
 
 ### `503 UNAVAILABLE` ("high demand") no modelo do topo da lista
 Depois de liberar crédito, `gemini-3.8-flash` respondeu `503 UNAVAILABLE` em

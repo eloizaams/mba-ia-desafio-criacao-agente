@@ -5,7 +5,7 @@
 ## Status
 - [x] Fase 0 — Decisões de alto nível (este documento)
 - [x] Fase 1 — Setup do projeto (`feature/setup`): ADK fixado em `2.11.0` (mais recente da série 2 no PyPI), `uv.lock` gerado, ruff/mypy/pytest/pre-commit configurados, CI em `.github/workflows/ci.yml`.
-- [x] Fase 2 — Spike ADK (`spike/adk-confirmacao`): padrão de confirmação/retomada comprovado em execução, sem chave de API. Resultados em [`docs/ADK-CONFIRMACAO.md`](ADK-CONFIRMACAO.md); frições em [`DESAFIOS.md`](../DESAFIOS.md).
+- [x] Fase 2 — Spike ADK (`spike/adk-confirmacao`, código na tag `spike-fase-2`): padrão de confirmação/retomada comprovado em execução, sem chave de API. Resultados em [`docs/ADK-CONFIRMACAO.md`](ADK-CONFIRMACAO.md); frições em [`DESAFIOS.md`](../DESAFIOS.md).
 - [ ] Fase 3 — Domínio + persistência + restauração (`feature/dominio-persistencia`)
 - [ ] Fase 4 — Tools + agentes (`feature/agentes`)
 - [ ] Fase 5 — API (`feature/api`)
@@ -51,7 +51,7 @@ Comandos (via `[project.scripts]`): `uv run aurora-api` (sobe em :8000), `uv run
 - `.env.example` (`GOOGLE_API_KEY`, `GOOGLE_GENAI_USE_VERTEXAI=FALSE`, modelos, caminho do banco); `.gitignore` com `.env`, `*.db`.
 
 ### Fase 2 — Spike (maior risco) — concluída
-Os seis pontos foram validados por execução, em `spike/`:
+Os seis pontos foram validados por execução no spike (tag `spike-fase-2`):
 1. ✅ Pedido `adk_request_confirmation` gerado **pelo sub-agente**; tool não executa.
 2. ✅ Aprovar executa uma vez; negar não executa.
 3. ✅ Vale entre processos (cada subcomando do spike é um processo novo; só o SQLite atravessa).
@@ -60,7 +60,7 @@ Os seis pontos foram validados por execução, em `spike/`:
 6. ✅ `gemini-3.5-flash` (troca de `gemini-3.8-flash` após 503 persistente; ver `DESAFIOS.md`).
 
 Saídas: [`docs/ADK-CONFIRMACAO.md`](ADK-CONFIRMACAO.md) (padrão comprovado),
-[`DESAFIOS.md`](../DESAFIOS.md) (frições), `spike/` (código descartável, não vai para a `main`).
+[`DESAFIOS.md`](../DESAFIOS.md) (frições). O código do spike saiu da branch: tinha função de prova, não de produto; a tag preserva o histórico.
 
 Pendente de chave: um *smoke test* com Gemini real, para confirmar que o modelo
 de verdade produz o mesmo fluxo de eventos. A mecânica já está provada.

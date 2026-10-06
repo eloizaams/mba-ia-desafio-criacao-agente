@@ -1,10 +1,10 @@
 # Padrão comprovado: confirmação e retomada no ADK 2.11.0
 
-Resultado da Fase 2 (branch `spike/adk-confirmacao`). Tudo aqui foi **executado**,
-não lido na documentação. Reprodução:
+Resultado da Fase 2 (branch `spike/adk-confirmacao`, código na tag `spike-fase-2`). Tudo aqui foi **executado**,
+não lido na documentação. Reprodução (num worktree do spike, fora da branch principal):
 
 ```bash
-cd spike
+git worktree add ../aurora-spike spike-fase-2 && cd ../aurora-spike/spike
 PYTHONPATH=. uv run python spike_confirmacao.py abrir            # processo 1
 PYTHONPATH=. uv run python spike_confirmacao.py confirmar <id> --aprovar   # processo 2
 PYTHONPATH=. uv run python spike_confirmacao.py confirmar <id> --negar
@@ -167,7 +167,7 @@ runner = Runner(app=app, session_service=SqliteSessionService(db_path=...))
 
 - `ResumabilityConfig` e `TOOL_CONFIRMATION` emitem `UserWarning` de
   **feature experimental**. É o motivo de D1 fixar a versão exata do ADK.
-- `confirmacoes_pendentes()` (em `spike/spike_confirmacao.py`) é a derivação a
+- `confirmacoes_pendentes()` (em `spike/spike_confirmacao.py`, tag `spike-fase-2`) é a derivação a
   levar para a API: os calls `adk_request_confirmation` sem `FunctionResponse` de
   mesmo id. Ela já serve de guarda do 409.
 - O `ScriptedLlm` deve virar utilitário de teste em `tests/`: é o que permite
