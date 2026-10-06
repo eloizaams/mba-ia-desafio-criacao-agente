@@ -31,12 +31,27 @@ _INSERT_VISITANTE = (
 )
 
 
-def restaurar(database: Path, dados: Path) -> None:
+_ADK_SESSION_TABLES = ("events", "sessions", "user_states", "app_states")
+
+
+def apagar_sessoes(database: Path) -> None:
+    """Remove as tabelas do SqliteSessionService, se existirem."""
+    connection = open_connection(database)
+    try:
+        with connection:
+            for tabela in _ADK_SESSION_TABLES:
+                connection.execute(f"DROP TABLE IF EXISTS {tabela}")
+    finally:
+        connection.close()
+
+
+def restaurar(database: Path, dados: Path, sessoes: bool = False) -> None:
     """Volta o condomínio ao estado de dados/*.json. Não toca nas sessões ADK nem em dados/.
 
     - Reservas ativas da conversa são removidas e as do seed são recarregadas.
     - Reservas canceladas fora do seed ficam como histórico: o código nunca é reaproveitado.
     - Visitantes são recarregados do zero.
+    Com `sessoes=True`, apaga também as tabelas do SqliteSessionService.
     O schema é criado antes da transação, porque executescript fecha qualquer transação aberta.
     """
     apartamentos = _read_json(dados / "apartamentos.json")
@@ -45,6 +60,8 @@ def restaurar(database: Path, dados: Path) -> None:
     visitantes = _read_json(dados / "visitantes.json")
 
     database.parent.mkdir(parents=True, exist_ok=True)
+    if sessoes:
+        apagar_sessoes(database)
     connection = open_connection(database)
     try:
         create_schema(connection)
@@ -74,9 +91,12 @@ def main() -> None:
     )
     parser.add_argument("--dados", type=Path, default=DADOS_PADRAO, help="pasta com os JSON")
     parser.add_argument("--banco", type=Path, default=None, help="caminho do SQLite")
+    parser.add_argument(
+        "--sessoes", action="store_true", help="apaga também as sessões ADK antes de restaurar"
+    )
     args = parser.parse_args()
     database: Path = args.banco or database_path()
-    restaurar(database, args.dados)
+    restaurar(database, args.dados, sessoes=args.sessoes)
     print(f"Dados restaurados em {database}")
 
 

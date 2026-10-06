@@ -39,6 +39,13 @@ class SqliteRepository:
         finally:
             connection.close()
 
+    def existe(self, numero: str) -> bool:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM apartamentos WHERE numero = ?", (numero,)
+            ).fetchone()
+        return row is not None
+
     def buscar(self, area_id: str) -> Area | None:
         with self._connection() as connection:
             row = connection.execute(

@@ -10,10 +10,12 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn>=0.30",
     "aiosqlite>=0.20",
+    "python-dotenv>=1.0",
 ]
 
 [project.scripts]
 aurora-restore = "aurora.adapters.persistence.restore:main"
+aurora-api = "aurora.adapters.api.main:main"
 
 [dependency-groups]
 dev = [

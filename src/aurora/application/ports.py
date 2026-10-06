@@ -35,6 +35,10 @@ class VisitanteRepository(Protocol):
     def do_apartamento(self, apartamento: str) -> list[Visitante]: ...
 
 
+class ApartamentoRepository(Protocol):
+    def existe(self, numero: str) -> bool: ...
+
+
 class RegulamentoRepository(Protocol):
     def capitulos(self) -> list[Capitulo]:
         """Todos os capítulos. Não vai para a conversa: serve à seleção por tópico."""
