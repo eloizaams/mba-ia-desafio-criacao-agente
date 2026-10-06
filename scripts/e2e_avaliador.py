@@ -5,7 +5,8 @@ Pré-condições:
   2. Dados restaurados: `uv run aurora-restore --sessoes`
 
 Uso:
-  uv run python scripts/e2e_avaliador.py
+  uv run python scripts/e2e_avaliador.py              # passo 13 pausa até uma tecla
+  uv run python scripts/e2e_avaliador.py --sem-pausa  # espera 30 s fixos; sem terminal
 
 O script imprime PASS/FAIL para cada verificação e encerra com código 1 se
 qualquer passo falhar. O passo 13 exige reiniciar a API manualmente: o script
@@ -333,6 +334,19 @@ def passo_12(client: httpx.Client, s1: str) -> int:
     return len(eventos)
 
 
+def _aguardar_api(client: httpx.Client, limite_s: int = 60) -> None:
+    """Sondagem em /docs: a API pode demorar a voltar depois do reinício manual."""
+    fim = time.monotonic() + limite_s
+    while time.monotonic() < fim:
+        try:
+            if client.get("/docs").status_code == 200:
+                return
+        except httpx.TransportError:
+            pass
+        time.sleep(1)
+    fail(f"API não voltou em {limite_s}s")
+
+
 def passo_13(
     client: httpx.Client, s1: str, qtd_eventos_antes: int, sem_pausa: bool = False
 ) -> None:
@@ -346,6 +360,7 @@ def passo_13(
     else:
         print("    Depois pressione ENTER para continuar.\n")
         input("  Pressione ENTER após reiniciar a API...")
+    _aguardar_api(client)
 
     eventos = get_eventos(client, s1)
     checar(
@@ -384,7 +399,7 @@ def passo_13(
     checar(RSV_302 in codigos_302, f"302 continua com {RSV_302}")
 
 
-def _corpo(r: httpx.Response) -> Any:
+def _corpo_json_ou_texto(r: httpx.Response) -> Any:
     """JSON quando houver; senão o texto, para um 500 em texto puro não esconder a falha."""
     try:
         return r.json()
@@ -392,14 +407,14 @@ def _corpo(r: httpx.Response) -> Any:
         return r.text
 
 
-def _dict(corpo: Any) -> dict[str, Any]:
+def _como_dict(corpo: Any) -> dict[str, Any]:
     return corpo if isinstance(corpo, dict) else {}
 
 
 async def _enviar_async(base_url: str, session_id: str, texto: str) -> dict[str, Any]:
     async with httpx.AsyncClient(base_url=base_url, timeout=120.0) as client:
         r = await client.post(f"/sessoes/{session_id}/mensagens", json={"texto": texto})
-        return {"status": r.status_code, "body": _corpo(r)}
+        return {"status": r.status_code, "body": _corpo_json_ou_texto(r)}
 
 
 async def _confirmar_async(base_url: str, session_id: str, conf_id: str) -> dict[str, Any]:
@@ -408,7 +423,7 @@ async def _confirmar_async(base_url: str, session_id: str, conf_id: str) -> dict
             f"/sessoes/{session_id}/confirmacoes",
             json={"id": conf_id, "confirmado": True},
         )
-        return {"status": r.status_code, "body": _corpo(r)}
+        return {"status": r.status_code, "body": _corpo_json_ou_texto(r)}
 
 
 async def passo_14_async() -> None:
@@ -429,14 +444,14 @@ async def passo_14_async() -> None:
     checar(r4m["status"] == 200, "Pedido S4 → 200")
 
     # Coletar confirmações
-    pends3 = _dict(r3m["body"]).get("confirmacoes_pendentes", [])
-    pends4 = _dict(r4m["body"]).get("confirmacoes_pendentes", [])
+    pends3 = _como_dict(r3m["body"]).get("confirmacoes_pendentes", [])
+    pends4 = _como_dict(r4m["body"]).get("confirmacoes_pendentes", [])
 
     if not pends3:
-        fail("S3 sem confirmação pendente")
+        fail(f"S3 sem confirmação pendente: {r3m['body']!r}")
         return
     if not pends4:
-        fail("S4 sem confirmação pendente")
+        fail(f"S4 sem confirmação pendente: {r4m['body']!r}")
         return
 
     id3 = pends3[0]["id"]

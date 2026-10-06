@@ -114,7 +114,7 @@ def apartamento_da_sessao(tool_context: ToolContext) -> str:
 # app.py — sessões e eventos persistidos num SQLite ao lado do banco do condomínio (`aurora.db.sessoes`)
 return Runner(
     app=construir_app(banco=caminho, regulamento=regulamento, modelo=modelo),
-    session_service=SqliteSessionService(db_path=str(caminho)),
+    session_service=SqliteSessionService(db_path=str(sessions_path(caminho))),
 )
 ```
 ```python
@@ -122,7 +122,7 @@ return Runner(
 App(name=NOME_RAIZ, root_agent=raiz, resumability_config=ResumabilityConfig(is_resumable=True))
 ```
 
-**Por que não depende do modelo**: `SqliteSessionService` persiste todos os eventos no mesmo arquivo SQLite que guarda reservas e visitantes. Reiniciar o processo não apaga nada; a sessão é localizada pelo `session_id` que a rota recebe, e o Runner lê o histórico completo do banco.
+**Por que não depende do modelo**: `SqliteSessionService` persiste todos os eventos em um arquivo SQLite próprio (`aurora.db.sessoes`), separado do que guarda reservas e visitantes. Reiniciar o processo não apaga nada; a sessão é localizada pelo `session_id` que a rota recebe, e o Runner lê o histórico completo do banco.
 
 ---
 
@@ -224,6 +224,8 @@ Para restaurar dados **e** apagar as sessões ADK (recomeçar do zero):
 ```bash
 uv run aurora-restore --sessoes
 ```
+
+Pare a API antes: apagar o arquivo de sessões com ela no ar deixa o processo preso ao arquivo antigo.
 
 ### Subir a API
 
