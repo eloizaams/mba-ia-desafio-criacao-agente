@@ -13,6 +13,7 @@ src/aurora/
     codigo.py                        # gerar_codigo_reserva()
   application/
     portas.py                        # Protocols: AgendaRepository (reservas), VisitanteRepository, AreaRepository
+                                     # (renomeado para ports.py na Fase 4, pela convenção PT/EN)
   adapters/
     persistence/
       schema.py                      # DDL: areas, apartamentos, reservas, visitantes

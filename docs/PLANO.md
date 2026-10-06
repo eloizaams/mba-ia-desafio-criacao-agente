@@ -7,7 +7,7 @@
 - [x] Fase 1 — Setup do projeto (`feature/setup`): ADK fixado em `2.11.0` (mais recente da série 2 no PyPI), `uv.lock` gerado, ruff/mypy/pytest/pre-commit configurados, CI em `.github/workflows/ci.yml`.
 - [x] Fase 2 — Spike ADK (`spike/adk-confirmacao`, código na tag `spike-fase-2`): padrão de confirmação/retomada comprovado em execução, sem chave de API. Resultados em [`docs/ADK-CONFIRMACAO.md`](ADK-CONFIRMACAO.md); frições em [`DESAFIOS.md`](../DESAFIOS.md).
 - [x] Fase 3 — Domínio + persistência + restauração (`feature/dominio-persistencia`): domínio, portas, SQLite com índice parcial, `aurora-restore`, testes. Spec em [`docs/specs/001-dominio-persistencia/`](specs/001-dominio-persistencia/spec.md).
-- [ ] Fase 4 — Tools + agentes (`feature/agentes`)
+- [x] Fase 4 — Tools + agentes (`feature/agentes`): casos de uso, tools sem apartamento, topologia (root + 2 especialistas + regulamento como `AgentTool`), confirmações derivadas dos eventos, 80 testes sem chave de API. Spec em [`docs/specs/002-tools-agentes/`](specs/002-tools-agentes/spec.md).
 - [ ] Fase 5 — API (`feature/api`)
 - [ ] Fase 6 — Concorrência e hardening das garantias (`feature/garantias`)
 - [ ] Fase 7 — E2E do avaliador, README final, release `v1.0.0`
@@ -24,7 +24,7 @@
 | D7 | SDD | Próprio enxuto: `docs/constitution.md` + `docs/specs/NNN-nome/{spec,plan,tasks}.md` | Leve e rastreável |
 | D8 | Git | Git Flow completo, tag `v1.0.0` na `main` | Disciplina de entrega; `main` = entregável |
 | D9 | Idioma | Domínio PT, infra EN | Casa com o contrato da API |
-| D10 | Modelo | `gemini-3.5-flash` nos dois papéis | Definido na Fase 2. Passou a topologia inteira em execução real; `gemini-3.8-flash` deu 503 de alta demanda na mesma janela. Pro só existe em preview; a série 2.5 dos exemplos do ADK está legada |
+| D10 | Modelo | `gemini-3.5-flash-lite` nos dois papéis, `gemini-3.5-flash` como alternativa | Revisado na Fase 4: o `-lite` passou o fluxo inteiro do avaliador em execução real e é o mais barato dos estáveis, enquanto o `3.5-flash` deu 503 naquela janela (na Fase 2 foi o contrário). A capacidade oscila por modelo e horário, então a escolha é variável de ambiente. Pro só existe em preview; a série 2.5 dos exemplos do ADK está legada |
 | D11 | Teste sem LLM | `ScriptedLlm` (subclasse de `BaseLlm`) reativo ao histórico | Fase 2: permite testar confirmação, retomada e persistência no CI sem `GOOGLE_API_KEY` |
 
 ## Estrutura alvo
@@ -62,8 +62,8 @@ Os seis pontos foram validados por execução no spike (tag `spike-fase-2`):
 Saídas: [`docs/ADK-CONFIRMACAO.md`](ADK-CONFIRMACAO.md) (padrão comprovado),
 [`DESAFIOS.md`](../DESAFIOS.md) (frições). O código do spike saiu da branch: tinha função de prova, não de produto; a tag preserva o histórico.
 
-Pendente de chave: um *smoke test* com Gemini real, para confirmar que o modelo
-de verdade produz o mesmo fluxo de eventos. A mecânica já está provada.
+O *smoke test* com Gemini real foi feito na Fase 4 (chave e crédito disponíveis):
+o fluxo do avaliador rodou inteiro com `gemini-3.5-flash-lite`. Resultado na Fase 4.
 
 ### Fase 3 — Domínio + persistência
 - Tabelas: `areas`, `apartamentos`, `reservas(codigo UNIQUE, apartamento, area, data, status)`, índice único parcial `(area, data) WHERE status='ativa'`; `visitantes`.
@@ -72,12 +72,15 @@ de verdade produz o mesmo fluxo de eventos. A mecânica já está provada.
 - `aurora-restore` recria a partir de `dados/*.json`. `--sessoes` (limpar sessões ADK) fica para a Fase 5.
 - Testes: unitários + concorrência (N gravações simultâneas → 1 vence).
 
-### Fase 4 — Tools + agentes
-- Tools leem apartamento de `tool_context.state` (gravado em `POST /sessoes`, chave não sobrescrevível pelo modelo).
-- Reservas: `listar_minhas_reservas`, `verificar_disponibilidade(area, data)` → só `livre/ocupada`, `reservar(area, data)` (`require_confirmation` = callable que retorna `True` se taxa > 0), `cancelar_minha_reserva(...)` (filtra pelo apartamento da sessão; reserva alheia = "não encontrada").
+### Fase 4 — Tools + agentes — concluída
+- Tools leem apartamento de `tool_context.state` (gravado na criação da sessão). Nenhuma tool tem parâmetro de apartamento, e isso é teste (`tests/unit/test_tools_contrato.py`).
+- Reservas: `listar_areas`, `listar_minhas_reservas`, `verificar_disponibilidade(area, data)` → só `livre/ocupada`, `reservar(area, data)` (`require_confirmation` = callable que retorna `True` se taxa > 0), `cancelar_minha_reserva(area, data)` (resolve o código na lista do próprio apartamento; reserva alheia = "não encontrada").
 - Visitantes: `listar_meus_visitantes`, `autorizar_visitante(nome, data)` (sempre confirma).
-- Regulamento: `consultar_regulamento(topico)` → só o(s) capítulo(s) pertinente(s); agente `regulamento` como `AgentTool`.
+- Regulamento: `consultar_regulamento(topico)` → no máximo dois capítulos, escolhidos por termos com o título pesando mais; agente `regulamento` como `AgentTool`.
 - Root: roteia, sem regulamento nas instruções.
+- Já nesta fase, porque é código de ADK e não de HTTP: `confirmacoes.py` (pendências derivadas dos eventos e a mensagem de retomada), `sessoes.py` e `app.py` (`App` + `Runner`). A Fase 5 embrulha isso em rotas.
+
+**Smoke test com Gemini real (2026-10-06, `gemini-3.5-flash-lite` nos dois papéis).** Rodou passos 3, 4, 5, 6, 7, 8, 11 e 12 do avaliador numa sessão só: quadra sem pendência, salão com pendência negada (nada gravado) e depois aprovada (uma reserva), visitante pendente mesmo com "já estou confirmando aqui", cancelamento sem pendência, e a piscina respondida com "das 9h às 20h, Artigo 22, inciso II". Nenhum `RSV-4821`, nenhum `Marina Duarte` e nenhum evento autorado por `regulamento` na sessão. Duas correções saíram daí, as duas de instrução: o modelo refazia o pedido depois de uma negação, e rotulava o dado da sessão como sendo do 302 (`DESAFIOS.md`). `gemini-3.5-flash` deu `503` de alta demanda nessa janela.
 
 ### Fase 5 — API
 - `POST /sessoes` (201), `POST /sessoes/{id}/mensagens`, `POST /sessoes/{id}/confirmacoes` (409 se id não pendente), `GET /sessoes/{id}/eventos`, `GET /apartamentos/{n}/reservas|visitantes`. 404 para sessão inexistente.

@@ -46,7 +46,12 @@ class SqliteRepository:
             ).fetchone()
         if row is None:
             return None
-        return Area(id=row["id"], nome=row["nome"], taxa=Decimal(row["taxa"]))
+        return _area_from_row(row)
+
+    def listar(self) -> list[Area]:
+        with self._connection() as connection:
+            rows = connection.execute("SELECT id, nome, taxa FROM areas ORDER BY nome").fetchall()
+        return [_area_from_row(row) for row in rows]
 
     def ocupada(self, area: str, data: date) -> bool:
         with self._connection() as connection:
@@ -123,6 +128,10 @@ class SqliteRepository:
             )
             for row in rows
         ]
+
+
+def _area_from_row(row: sqlite3.Row) -> Area:
+    return Area(id=row["id"], nome=row["nome"], taxa=Decimal(row["taxa"]))
 
 
 def _reservation_from_row(row: sqlite3.Row) -> Reserva:

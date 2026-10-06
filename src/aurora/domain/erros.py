@@ -12,3 +12,7 @@ class DadoInvalido(DominioError):
 
 class ReservaNaoEncontrada(DominioError):
     """Não há reserva ativa com esse código no apartamento informado."""
+
+
+class AreaDesconhecida(DominioError):
+    """Não existe área comum com esse id."""

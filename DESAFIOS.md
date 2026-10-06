@@ -27,6 +27,34 @@ Justificar a escolha no README para que não pareça desatualização.
 No call `adk_request_confirmation`, a dica está em
 `args["toolConfirmation"]["hint"]`, não em `args["hint"]`.
 
+### Pela via nativa, o `hint` é um texto fixo em inglês
+Com `require_confirmation` (bool ou callable), quem escreve o `hint` é o
+`FunctionTool`: *"Please approve or reject the tool call ..."*. Não há parâmetro
+para trocar. Para texto próprio seria preciso chamar
+`tool_context.request_confirmation(hint=...)` dentro da tool e reimplementar o
+caminho de rejeição à mão. Aurora não faz isso: o texto em português de `acao`
+é montado em `adapters/adk/confirmacoes.py`, a partir do nome da tool.
+
+### O callable de `require_confirmation` tem a assinatura da tool
+O ADK prepara os argumentos da tool e chama `callable(**args_da_tool)` — com
+`tool_context` incluído se a tool o declarar. Assinatura diferente estoura
+`TypeError` só em tempo de execução, no meio da conversa. Manter o callable ao
+lado da tool, com os mesmos parâmetros.
+
+### Responder confirmação com id inexistente levanta `ValueError` no Runner
+`Function call not found for function response ids: {...}`. Ou seja: a guarda do
+409 tem de rodar **antes** de chamar o `Runner`, senão o id inválido do passo 9
+vira 500. Já responder **de novo** um id válido é aceito em silêncio e **não**
+reexecuta a tool (o function call já tem resposta) — a defesa do passo 8 é dupla:
+guarda na rota e comportamento do ADK.
+
+### Transferência entre agentes sem `context_cache_config` avisa no log
+`App "aurora" can transfer between agents but has no context_cache_config`. Cada
+transferência troca instrução e tool set, então o prefixo do prompt muda e nada
+é reaproveitado de cache. É aviso de custo com Gemini real, não erro. Ligar o
+cache é otimização a avaliar depois do fluxo do avaliador passar, porque mexe em
+como o ADK monta a requisição.
+
 ### Features experimentais com `UserWarning`
 `ResumabilityConfig` e `TOOL_CONFIRMATION` avisam que podem mudar sem aviso.
 É a razão de a versão do ADK estar fixada em `==2.11.0`. Ao subir a versão,
@@ -78,6 +106,13 @@ Com uma instância compartilhada, o sub-agente também enxergava
 
 ## Ferramental
 
+### `tests/` precisa de `__init__.py` para `from tests.support import ...`
+Sem os `__init__.py`, o pytest coloca em `sys.path` a pasta de cada teste
+(`tests/integration`), não a raiz, e o mypy trata `tests/support/x.py` como
+módulo de topo `x`. Com `__init__.py` em `tests/` e em cada subpasta, os dois
+passam a ver `tests.support.x`. O pacote `aurora` instalado não ajuda aqui: o
+wheel só empacota `src/aurora`.
+
 ### `ruff check --fix` não quebra linha longa; `ruff format` nem sempre
 `E501` em f-string de uma linha não é corrigido por nenhum dos dois. Extrair a
 expressão para uma variável antes. Ordem certa: `ruff format` **depois**
@@ -85,9 +120,15 @@ expressão para uma variável antes. Ordem certa: `ruff format` **depois**
 
 ## Ambiente de testes com Gemini
 
+### Chave e crédito: resolvidos
+A `GOOGLE_API_KEY` está no `.env` e o crédito do AI Studio foi pago (2026-10-06).
+Teste real **não** é bloqueio; o que vem abaixo é história de como falhou antes,
+para reconhecer o sintoma. Como o ADK, usado como biblioteca, não lê `.env`,
+carregue com `set -a; source .env; set +a` antes de rodar.
+
 ### Chave válida, mas sem crédito: `402 RESOURCE_EXHAUSTED`
 A chave autentica e a requisição chega ao modelo, mas o projeto do AI Studio
-está sem crédito pré-pago. A resposta é `402 ... Your prepayment credits are
+fica sem crédito pré-pago. A resposta é `402 ... Your prepayment credits are
 depleted`. O erro aparece na primeira chamada ao modelo, então o spike falha
 no meio do `abrir` e pode deixar uma sessão pela metade no banco.
 **Saída:** conferir o crédito em `ai.studio/projects` antes de rodar os testes
@@ -99,3 +140,35 @@ todas as tentativas de uma janela de vários minutos. A mesma topologia rodou
 inteira com `gemini-3.5-flash` (T3 a T6). Erro transitório do lado do Google,
 não do código. Ao rodar testes reais, valer-se de um segundo modelo estável
 como reserva, parametrizado por `AURORA_MODELO_*`, sem editar o código.
+
+### O 503 muda de modelo entre uma janela e outra
+Na Fase 4 (2026-10-06) foi `gemini-3.5-flash` que deu `503` — o mesmo modelo que
+tinha salvado a Fase 2 — e também `gemini-3.8-flash` e `gemini-3.1-pro-preview`.
+Numa chamada de texto puro o `3.5-flash` respondeu "ok" e, minutos depois,
+voltou a dar `503`: a capacidade oscila dentro da mesma sessão de trabalho.
+`gemini-3.5-flash-lite` respondeu a tudo, inclusive tool calling, e rodou o
+fluxo inteiro do avaliador. **Saída:** não tratar o 503 como "modelo errado"
+nem reescrever nada; trocar `AURORA_MODELO_*` e seguir. Antes de concluir que o
+problema é de código, provar com uma chamada mínima por modelo (texto puro e
+com `tools`), que custa centavos e separa capacidade de bug.
+
+### Depois de uma negação, o modelo refaz o pedido sozinho
+Com `gemini-3.5-flash-lite`, negar a confirmação de `reservar` fazia o
+especialista chamar `reservar` outra vez no mesmo turno de retomada: a resposta
+`{"error": "This tool call is rejected."}` parece, para o modelo, um erro a
+contornar. O efeito é uma pendência nova logo depois da negação — nada é
+gravado, mas ela aparece em `confirmacoes_pendentes` e pode ser aprovada depois.
+**Saída:** instrução explícita nos dois especialistas: confirmação negada não se
+refaz, pergunta-se ao morador. **Reduziu, mas não eliminou** — numa rodada posterior
+o `-lite` refez o pedido mesmo com a instrução. Instrução é mitigação, não garantia,
+e aqui não precisa ser: nada é gravado sem aprovação, e o índice único impede a
+reserva dobrada. O efeito que sobra é uma pendência a mais na lista, que o enunciado
+permite ("lista todas as confirmações pendentes da sessão").
+
+### O modelo rotula o dado da sessão como sendo de outro apartamento
+À pergunta "sou do 302, quais reservas o 302 tem?", a primeira versão respondeu
+"o apartamento 302 possui a seguinte reserva: RSV-1377" — que é do 101. Nenhum
+dado vazou (a tool só vê a sessão), mas a frase informa errado e passa a
+impressão de que a garantia falhou. **Saída:** instrução dizendo que o resultado
+da tool é sempre do apartamento da sessão e não pode ser apresentado como sendo
+de outro. Depois disso a resposta virou "as reservas do seu apartamento são...".

@@ -29,20 +29,21 @@ uv run pre-commit run --all-files          # hooks fora do commit
 
 ## Estado atual
 
-Fase 2 concluída (spike na tag `spike-fase-2`, descartado da branch). `src/aurora/` ainda contém só `__init__.py`. A arquitetura abaixo é o alvo das Fases 3 a 5 (`docs/PLANO.md`), não código existente.
+Fase 4 concluída. `domain/`, `application/` e `adapters/` (`persistence/`, `regulamento.py`, `adk/`) existem e são cobertos por testes que rodam sem chave de API. Falta `adapters/api/` (Fase 5): as rotas FastAPI por cima de `adapters/adk/app.py`, `sessoes.py` e `confirmacoes.py`, que já estão prontos.
 
-## Arquitetura alvo
+## Arquitetura
 
 Hexagonal leve em `src/aurora/`: `domain/` (entidades e regras, sem ADK, FastAPI nem SQLite), `application/` (casos de uso: reservar, cancelar, autorizar visitante, consultar regulamento), `adapters/` (`persistence/` SQLite, `adk/` tools, agentes e confirmação, `api/` FastAPI). `domain/` e `application/` são mypy strict com `disallow_any_explicit`.
 
 Decisões que atravessam vários arquivos e não se descobrem lendo um só:
 
-1. **Apartamento vem da sessão.** `POST /sessoes` grava o apartamento em `tool_context.state`. As tools leem dali e nenhuma aceita apartamento escolhido pelo modelo.
+1. **Apartamento vem da sessão.** `criar_sessao` (em `adapters/adk/sessoes.py`) grava o apartamento em `state`; as tools leem dali, por `apartamento_da_sessao`, e nenhuma tem parâmetro de apartamento. O `user_id` do ADK é fixo (`"morador"`), para que a sessão seja localizável só pelo `session_id` que as rotas recebem.
 2. **Topologia de agentes.** O root roteia. `reservas` e `visitantes` são `sub_agents` com transferência livre. Não use `disallow_transfer_to_parent` nem `disallow_transfer_to_peers` nos especialistas: a retomada de confirmação falha em silêncio. `regulamento` é `AgentTool`, que roda em sessão própria e não vaza eventos para a sessão do pai (Garantia 4). O root não recebe o regulamento nas instruções.
-3. **Confirmação.** Tool com `require_confirmation` gera o evento `adk_request_confirmation`. `confirmacoes_pendentes` é derivado dos eventos da sessão (call sem function response de mesmo id), sem estado extra. `POST /confirmacoes` envia um `FunctionResponse` com esse id pelo Runner, e a rota responde 409 se o id não estiver pendente. O App usa `ResumabilityConfig(is_resumable=True)`. Detalhes em `docs/ADK-CONFIRMACAO.md`.
+3. **Confirmação.** Tool com `require_confirmation` gera o evento `adk_request_confirmation` — callable (taxa > 0) em `reservar`, `True` em `autorizar_visitante`; o callable tem a mesma assinatura da tool. `pendentes()` (em `adapters/adk/confirmacoes.py`) deriva as pendências dos eventos da sessão (call sem function response de mesmo id), sem estado extra, e `acao`/`detalhes` saem do `originalFunctionCall`. `POST /confirmacoes` envia um `FunctionResponse` com esse id pelo Runner, **depois** de checar a pendência: id fora da lista levanta `ValueError` no Runner, então o 409 vem antes. O App usa `ResumabilityConfig(is_resumable=True)`. Detalhes em `docs/ADK-CONFIRMACAO.md`.
 4. **Persistência.** SQLite, com sessões ADK via `SqliteSessionService`. `DatabaseSessionService` exige o extra `[db]` (SQLAlchemy), que o projeto não instala. A exclusividade de reserva é uma constraint: índice único parcial `(area, data) WHERE status='ativa'`. O `IntegrityError` na gravação vira resultado de domínio "data indisponível", nunca 500. Cancelamento marca `status='cancelada'`, e o código de reserva nunca é reaproveitado.
 5. **`dados/` é somente leitura** (constituição 8). `aurora-restore` recria o banco a partir dos JSON; as mudanças da conversa vão para o banco.
-6. **Modelos.** `gemini-3.5-flash` nos dois papéis, por variáveis `AURORA_MODELO_*`. Os testes que não usam chave usam `tests/support/scripted_llm.py` (`ScriptedLlm`): ele decide o turno a partir do histórico, não de um contador.
+6. **Modelos.** `gemini-3.5-flash-lite` nos dois papéis, por variáveis `AURORA_MODELO_*`; `gemini-3.5-flash` é a alternativa. 503 de alta demanda se resolve trocando a variável, não o código. `construir_raiz`/`construir_runner` recebem uma **fábrica** de modelo por nome de agente, e não um modelo: é o que permite uma instância de `ScriptedLlm` por agente nos testes. O `ScriptedLlm` (`tests/support/scripted_llm.py`) decide o turno a partir do histórico, não de um contador, e o roteiro é declarado pelo teste.
+7. **Regulamento.** `consultar_regulamento(topico)` devolve no máximo dois capítulos, escolhidos em `domain/regulamento.py` por termos — título vale 10, corpo 1 — e um segundo capítulo só em quase-empate. Tópico sem casamento devolve só os títulos, para o agente tentar de novo. Nada disso depende do modelo.
 
 ## Convenções do projeto
 
