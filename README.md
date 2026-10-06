@@ -66,6 +66,7 @@ def _reserva_gera_cobranca(area: str, data: str, tool_context: ToolContext) -> b
     """Só a taxa da área decide; o modelo não influencia."""
     return servico.gera_cobranca(area)
 
+
 FunctionTool(reservar, require_confirmation=_reserva_gera_cobranca)
 ```
 ```python
@@ -164,9 +165,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_reserva_ativa_area_data
 try:
     connection.execute("INSERT INTO reservas ...", params)
 except sqlite3.IntegrityError as erro:
-    if _AGENDA_COLUMNS in str(erro):       # violação do índice parcial (area, data)
+    if _AGENDA_COLUMNS in str(erro):  # violação do índice parcial (area, data)
         raise DataIndisponivel(...) from erro
-    if _CODE_COLUMN in str(erro):          # colisão de código: tenta novo código
+    if _CODE_COLUMN in str(erro):  # colisão de código: tenta novo código
         continue
     raise
 ```
