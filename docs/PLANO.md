@@ -7,7 +7,7 @@
 - [x] Fase 1 — Setup do projeto (`feature/setup`): ADK fixado em `2.11.0` (mais recente da série 2 no PyPI), `uv.lock` gerado, ruff/mypy/pytest/pre-commit configurados, CI em `.github/workflows/ci.yml`.
 - [x] Fase 2 — Spike ADK (`spike/adk-confirmacao`, código na tag `spike-fase-2`): padrão de confirmação/retomada comprovado em execução, sem chave de API. Resultados em [`docs/ADK-CONFIRMACAO.md`](ADK-CONFIRMACAO.md); frições em [`DESAFIOS.md`](../DESAFIOS.md).
 - [x] Fase 3 — Domínio + persistência + restauração (`feature/dominio-persistencia`): domínio, portas, SQLite com índice parcial, `aurora-restore`, testes. Spec em [`docs/specs/001-dominio-persistencia/`](specs/001-dominio-persistencia/spec.md).
-- [ ] Fase 4 — Tools + agentes (`feature/agentes`)
+- [x] Fase 4 — Tools + agentes (`feature/agentes`): casos de uso, tools sem apartamento, topologia (root + 2 especialistas + regulamento como `AgentTool`), confirmações derivadas dos eventos, 80 testes sem chave de API. Spec em [`docs/specs/002-tools-agentes/`](specs/002-tools-agentes/spec.md).
 - [ ] Fase 5 — API (`feature/api`)
 - [ ] Fase 6 — Concorrência e hardening das garantias (`feature/garantias`)
 - [ ] Fase 7 — E2E do avaliador, README final, release `v1.0.0`
@@ -72,12 +72,13 @@ de verdade produz o mesmo fluxo de eventos. A mecânica já está provada.
 - `aurora-restore` recria a partir de `dados/*.json`. `--sessoes` (limpar sessões ADK) fica para a Fase 5.
 - Testes: unitários + concorrência (N gravações simultâneas → 1 vence).
 
-### Fase 4 — Tools + agentes
-- Tools leem apartamento de `tool_context.state` (gravado em `POST /sessoes`, chave não sobrescrevível pelo modelo).
-- Reservas: `listar_minhas_reservas`, `verificar_disponibilidade(area, data)` → só `livre/ocupada`, `reservar(area, data)` (`require_confirmation` = callable que retorna `True` se taxa > 0), `cancelar_minha_reserva(...)` (filtra pelo apartamento da sessão; reserva alheia = "não encontrada").
+### Fase 4 — Tools + agentes — concluída
+- Tools leem apartamento de `tool_context.state` (gravado na criação da sessão). Nenhuma tool tem parâmetro de apartamento, e isso é teste (`tests/unit/test_tools_contrato.py`).
+- Reservas: `listar_areas`, `listar_minhas_reservas`, `verificar_disponibilidade(area, data)` → só `livre/ocupada`, `reservar(area, data)` (`require_confirmation` = callable que retorna `True` se taxa > 0), `cancelar_minha_reserva(area, data)` (resolve o código na lista do próprio apartamento; reserva alheia = "não encontrada").
 - Visitantes: `listar_meus_visitantes`, `autorizar_visitante(nome, data)` (sempre confirma).
-- Regulamento: `consultar_regulamento(topico)` → só o(s) capítulo(s) pertinente(s); agente `regulamento` como `AgentTool`.
+- Regulamento: `consultar_regulamento(topico)` → no máximo dois capítulos, escolhidos por termos com o título pesando mais; agente `regulamento` como `AgentTool`.
 - Root: roteia, sem regulamento nas instruções.
+- Já nesta fase, porque é código de ADK e não de HTTP: `confirmacoes.py` (pendências derivadas dos eventos e a mensagem de retomada), `sessoes.py` e `app.py` (`App` + `Runner`). A Fase 5 embrulha isso em rotas.
 
 ### Fase 5 — API
 - `POST /sessoes` (201), `POST /sessoes/{id}/mensagens`, `POST /sessoes/{id}/confirmacoes` (409 se id não pendente), `GET /sessoes/{id}/eventos`, `GET /apartamentos/{n}/reservas|visitantes`. 404 para sessão inexistente.

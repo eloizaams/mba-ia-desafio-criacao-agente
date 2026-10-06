@@ -27,6 +27,34 @@ Justificar a escolha no README para que não pareça desatualização.
 No call `adk_request_confirmation`, a dica está em
 `args["toolConfirmation"]["hint"]`, não em `args["hint"]`.
 
+### Pela via nativa, o `hint` é um texto fixo em inglês
+Com `require_confirmation` (bool ou callable), quem escreve o `hint` é o
+`FunctionTool`: *"Please approve or reject the tool call ..."*. Não há parâmetro
+para trocar. Para texto próprio seria preciso chamar
+`tool_context.request_confirmation(hint=...)` dentro da tool e reimplementar o
+caminho de rejeição à mão. Aurora não faz isso: o texto em português de `acao`
+é montado em `adapters/adk/confirmacoes.py`, a partir do nome da tool.
+
+### O callable de `require_confirmation` tem a assinatura da tool
+O ADK prepara os argumentos da tool e chama `callable(**args_da_tool)` — com
+`tool_context` incluído se a tool o declarar. Assinatura diferente estoura
+`TypeError` só em tempo de execução, no meio da conversa. Manter o callable ao
+lado da tool, com os mesmos parâmetros.
+
+### Responder confirmação com id inexistente levanta `ValueError` no Runner
+`Function call not found for function response ids: {...}`. Ou seja: a guarda do
+409 tem de rodar **antes** de chamar o `Runner`, senão o id inválido do passo 9
+vira 500. Já responder **de novo** um id válido é aceito em silêncio e **não**
+reexecuta a tool (o function call já tem resposta) — a defesa do passo 8 é dupla:
+guarda na rota e comportamento do ADK.
+
+### Transferência entre agentes sem `context_cache_config` avisa no log
+`App "aurora" can transfer between agents but has no context_cache_config`. Cada
+transferência troca instrução e tool set, então o prefixo do prompt muda e nada
+é reaproveitado de cache. É aviso de custo com Gemini real, não erro. Ligar o
+cache é otimização a avaliar depois do fluxo do avaliador passar, porque mexe em
+como o ADK monta a requisição.
+
 ### Features experimentais com `UserWarning`
 `ResumabilityConfig` e `TOOL_CONFIRMATION` avisam que podem mudar sem aviso.
 É a razão de a versão do ADK estar fixada em `==2.11.0`. Ao subir a versão,
@@ -77,6 +105,13 @@ Com uma instância compartilhada, o sub-agente também enxergava
 (roteador × especialista) tem de ser um campo do modelo.
 
 ## Ferramental
+
+### `tests/` precisa de `__init__.py` para `from tests.support import ...`
+Sem os `__init__.py`, o pytest coloca em `sys.path` a pasta de cada teste
+(`tests/integration`), não a raiz, e o mypy trata `tests/support/x.py` como
+módulo de topo `x`. Com `__init__.py` em `tests/` e em cada subpasta, os dois
+passam a ver `tests.support.x`. O pacote `aurora` instalado não ajuda aqui: o
+wheel só empacota `src/aurora`.
 
 ### `ruff check --fix` não quebra linha longa; `ruff format` nem sempre
 `E501` em f-string de uma linha não é corrigido por nenhum dos dois. Extrair a
