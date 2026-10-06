@@ -5,26 +5,28 @@
 ## Status
 - [x] Fase 0 — Decisões de alto nível (este documento)
 - [x] Fase 1 — Setup do projeto (`feature/setup`): ADK fixado em `2.11.0` (mais recente da série 2 no PyPI), `uv.lock` gerado, ruff/mypy/pytest/pre-commit configurados, CI em `.github/workflows/ci.yml`.
-- [ ] Fase 2 — Spike ADK: confirmação + sessão persistida (`spike/adk-confirmacao`, descartável)
-- [ ] Fase 3 — Domínio + persistência + restauração (`feature/dominio-persistencia`)
-- [ ] Fase 4 — Tools + agentes (`feature/agentes`)
-- [ ] Fase 5 — API (`feature/api`)
-- [ ] Fase 6 — Concorrência e hardening das garantias (`feature/garantias`)
-- [ ] Fase 7 — E2E do avaliador, README final, release `v1.0.0`
+- [x] Fase 2 — Spike ADK (`spike/adk-confirmacao`, código na tag `spike-fase-2`): padrão de confirmação/retomada comprovado em execução, sem chave de API. Resultados em [`docs/ADK-CONFIRMACAO.md`](ADK-CONFIRMACAO.md); frições em [`DESAFIOS.md`](../DESAFIOS.md).
+- [x] Fase 3 — Domínio + persistência + restauração (`feature/dominio-persistencia`): domínio, portas, SQLite com índice parcial, `aurora-restore`, testes. Spec em [`docs/specs/001-dominio-persistencia/`](specs/001-dominio-persistencia/spec.md).
+- [x] Fase 4 — Tools + agentes (`feature/agentes`): casos de uso, tools sem apartamento, topologia (root + 2 especialistas + regulamento como `AgentTool`), confirmações derivadas dos eventos, 80 testes sem chave de API. Spec em [`docs/specs/002-tools-agentes/`](specs/002-tools-agentes/spec.md).
+- [x] Fase 5 — API (`feature/api`): spec em [`docs/specs/003-api/`](specs/003-api/spec.md). FastAPI com 6 rotas, `aurora-api`, `aurora-restore --sessoes`, 108 testes passando sem chave de API. Smoke com Gemini real pendente.
+- [x] Fase 6 — Concorrência e hardening das garantias (`feature/garantias`): spec em [`docs/specs/004-garantias/`](specs/004-garantias/spec.md). Revisão adversarial das 5 garantias (todos os vetores cobertos pelos testes existentes) e teste de disputa pela API (passo 14: ambas retornam 200, exatamente 1 reserva). 110 testes passando.
+- [x] Fase 7 — E2E do avaliador, README final. E2E real com `gemini-3.5-flash-lite` em clone limpo de `develop` (8b51920): 14 passos, 91 checagens, 0 falhas.
+- [x] Release `v1.0.0` (`release/v1.0.0` → `main`, tag na `main`)
 
 ## Decisões (ADR resumido)
 | # | Decisão | Escolha | Motivo |
 |---|---|---|---|
 | D1 | Linguagem | Python 3.12+ / uv | Obrigatório no enunciado |
-| D2 | Armazenamento | SQLite (dados + sessões ADK via `DatabaseSessionService` `sqlite+aiosqlite`) | Zero infra; constraint garante exclusividade; enunciado validou confirmação com SQLite |
+| D2 | Armazenamento | SQLite: dados do condomínio + sessões ADK via **`SqliteSessionService`** | Zero infra; constraint garante exclusividade. Revisado na Fase 2: `DatabaseSessionService` exige o extra `[db]` (SQLAlchemy); `SqliteSessionService` usa só `aiosqlite` e é o que o CLI do ADK usa |
 | D3 | Arquitetura | Hexagonal leve: `domain/`, `application/`, `adapters/` (adk, api, persistence) | Garantias testáveis sem LLM; tools finas |
-| D4 | Topologia | Root → `reservas` e `visitantes` como `sub_agents`; `regulamento` como `AgentTool` | Confirmação retoma no agente que pediu; regulamento em contexto isolado (Garantia 4) |
-| D5 | Confirmação | Nativa ADK (`require_confirmation`) + guarda em código na rota (409) | Conceito avaliado; guarda impede id inválido/repetido |
+| D4 | Topologia | Root → `reservas` e `visitantes` como `sub_agents` (**transferência livre**); `regulamento` como `AgentTool` | Comprovado na Fase 2: confirmação retoma no agente que pediu; `AgentTool` isola o contexto por construção (Garantia 4). Travar o sub-agente com `disallow_transfer_to_*` quebra a retomada |
+| D5 | Confirmação | Nativa ADK (`require_confirmation`) + `App(resumability_config=ResumabilityConfig(is_resumable=True))` + guarda em código na rota (409) | Conceito avaliado; guarda impede id inválido/repetido. `is_resumable` deixa o roteamento da resposta explícito |
 | D6 | Qualidade | pytest (unit + concorrência), script E2E do avaliador, ruff + mypy + pre-commit, CI | Portfólio |
 | D7 | SDD | Próprio enxuto: `docs/constitution.md` + `docs/specs/NNN-nome/{spec,plan,tasks}.md` | Leve e rastreável |
 | D8 | Git | Git Flow completo, tag `v1.0.0` na `main` | Disciplina de entrega; `main` = entregável |
 | D9 | Idioma | Domínio PT, infra EN | Casa com o contrato da API |
-| D10 | Modelo | Tier pago; modelos definidos no spike (consultar doc oficial) | Modelos mudam com frequência |
+| D10 | Modelo | `gemini-3.5-flash-lite` nos dois papéis, `gemini-3.5-flash` como alternativa | Revisado na Fase 4: o `-lite` passou o fluxo inteiro do avaliador em execução real e é o mais barato dos estáveis, enquanto o `3.5-flash` deu 503 naquela janela (na Fase 2 foi o contrário). A capacidade oscila por modelo e horário, então a escolha é variável de ambiente. Pro só existe em preview; a série 2.5 dos exemplos do ADK está legada |
+| D11 | Teste sem LLM | `ScriptedLlm` (subclasse de `BaseLlm`) reativo ao histórico | Fase 2: permite testar confirmação, retomada e persistência no CI sem `GOOGLE_API_KEY` |
 
 ## Estrutura alvo
 ```
@@ -49,29 +51,37 @@ Comandos (via `[project.scripts]`): `uv run aurora-api` (sobe em :8000), `uv run
 - ruff, mypy, pytest, pytest-asyncio, pre-commit; CI (lint + testes sem chave).
 - `.env.example` (`GOOGLE_API_KEY`, `GOOGLE_GENAI_USE_VERTEXAI=FALSE`, modelos, caminho do banco); `.gitignore` com `.env`, `*.db`.
 
-### Fase 2 — Spike (maior risco)
-Validar em código descartável, com sessão SQLite persistida:
-1. Tool com `require_confirmation` dentro de um `sub_agent` gera `adk_request_confirmation`.
-2. Retomar via Runner enviando `FunctionResponse` de `adk_request_confirmation` — aprovar executa uma vez; negar não executa.
-3. Repetir 1–2 **após reiniciar o processo**.
-4. Qual config faz a resposta chegar ao agente certo (transferências, `ResumabilityConfig` do App).
-5. Se eventos internos de `AgentTool` entram ou não na sessão pai (Garantia 4).
-6. Modelos Gemini disponíveis e escolha por agente.
-Saída: skill/nota `adk-confirmacao` com o padrão comprovado + registro no `DESAFIOS.md`.
+### Fase 2 — Spike (maior risco) — concluída
+Os seis pontos foram validados por execução no spike (tag `spike-fase-2`):
+1. ✅ Pedido `adk_request_confirmation` gerado **pelo sub-agente**; tool não executa.
+2. ✅ Aprovar executa uma vez; negar não executa.
+3. ✅ Vale entre processos (cada subcomando do spike é um processo novo; só o SQLite atravessa).
+4. ✅ `is_resumable=True` + sub-agente com transferência livre.
+5. ✅ `AgentTool` não vaza eventos para a sessão do pai.
+6. ✅ `gemini-3.5-flash` (troca de `gemini-3.8-flash` após 503 persistente; ver `DESAFIOS.md`).
+
+Saídas: [`docs/ADK-CONFIRMACAO.md`](ADK-CONFIRMACAO.md) (padrão comprovado),
+[`DESAFIOS.md`](../DESAFIOS.md) (frições). O código do spike saiu da branch: tinha função de prova, não de produto; a tag preserva o histórico.
+
+O *smoke test* com Gemini real foi feito na Fase 4 (chave e crédito disponíveis):
+o fluxo do avaliador rodou inteiro com `gemini-3.5-flash-lite`. Resultado na Fase 4.
 
 ### Fase 3 — Domínio + persistência
 - Tabelas: `areas`, `apartamentos`, `reservas(codigo UNIQUE, apartamento, area, data, status)`, índice único parcial `(area, data) WHERE status='ativa'`; `visitantes`.
 - Cancelamento = `status='cancelada'` (código nunca é reaproveitado — regra 5). Código gerado pelo sistema, com retry em colisão.
 - `IntegrityError` na gravação → resultado de domínio "data indisponível" (Garantia 5, sem 500).
-- `aurora-restore` recria a partir de `dados/*.json`.
+- `aurora-restore` recria a partir de `dados/*.json`. `--sessoes` (limpar sessões ADK) fica para a Fase 5.
 - Testes: unitários + concorrência (N gravações simultâneas → 1 vence).
 
-### Fase 4 — Tools + agentes
-- Tools leem apartamento de `tool_context.state` (gravado em `POST /sessoes`, chave não sobrescrevível pelo modelo).
-- Reservas: `listar_minhas_reservas`, `verificar_disponibilidade(area, data)` → só `livre/ocupada`, `reservar(area, data)` (`require_confirmation` = callable que retorna `True` se taxa > 0), `cancelar_minha_reserva(...)` (filtra pelo apartamento da sessão; reserva alheia = "não encontrada").
+### Fase 4 — Tools + agentes — concluída
+- Tools leem apartamento de `tool_context.state` (gravado na criação da sessão). Nenhuma tool tem parâmetro de apartamento, e isso é teste (`tests/unit/test_tools_contrato.py`).
+- Reservas: `listar_areas`, `listar_minhas_reservas`, `verificar_disponibilidade(area, data)` → só `livre/ocupada`, `reservar(area, data)` (`require_confirmation` = callable que retorna `True` se taxa > 0), `cancelar_minha_reserva(area, data)` (resolve o código na lista do próprio apartamento; reserva alheia = "não encontrada").
 - Visitantes: `listar_meus_visitantes`, `autorizar_visitante(nome, data)` (sempre confirma).
-- Regulamento: `consultar_regulamento(topico)` → só o(s) capítulo(s) pertinente(s); agente `regulamento` como `AgentTool`.
+- Regulamento: `consultar_regulamento(topico)` → no máximo dois capítulos, escolhidos por termos com o título pesando mais; agente `regulamento` como `AgentTool`.
 - Root: roteia, sem regulamento nas instruções.
+- Já nesta fase, porque é código de ADK e não de HTTP: `confirmacoes.py` (pendências derivadas dos eventos e a mensagem de retomada), `sessoes.py` e `app.py` (`App` + `Runner`). A Fase 5 embrulha isso em rotas.
+
+**Smoke test com Gemini real (2026-10-06, `gemini-3.5-flash-lite` nos dois papéis).** Rodou passos 3, 4, 5, 6, 7, 8, 11 e 12 do avaliador numa sessão só: quadra sem pendência, salão com pendência negada (nada gravado) e depois aprovada (uma reserva), visitante pendente mesmo com "já estou confirmando aqui", cancelamento sem pendência, e a piscina respondida com "das 9h às 20h, Artigo 22, inciso II". Nenhum `RSV-4821`, nenhum `Marina Duarte` e nenhum evento autorado por `regulamento` na sessão. Duas correções saíram daí, as duas de instrução: o modelo refazia o pedido depois de uma negação, e rotulava o dado da sessão como sendo do 302 (`DESAFIOS.md`). `gemini-3.5-flash` deu `503` de alta demanda nessa janela.
 
 ### Fase 5 — API
 - `POST /sessoes` (201), `POST /sessoes/{id}/mensagens`, `POST /sessoes/{id}/confirmacoes` (409 se id não pendente), `GET /sessoes/{id}/eventos`, `GET /apartamentos/{n}/reservas|visitantes`. 404 para sessão inexistente.
