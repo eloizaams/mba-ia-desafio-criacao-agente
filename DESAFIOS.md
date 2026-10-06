@@ -2,9 +2,6 @@
 
 Pontos que custaram tempo e podem reaparecer. Ler ao iniciar uma sessão nova.
 
-> Fricções de git (refs defasados, PR mergeado sem o último commit) não ficam aqui:
-> são do fluxo do usuário, não do projeto. Estão na skill `abrir-pr`.
-
 ## ADK 2.11.0
 
 ### `DatabaseSessionService` não funciona sem o extra `[db]`
@@ -120,11 +117,10 @@ expressão para uma variável antes. Ordem certa: `ruff format` **depois**
 
 ## Ambiente de testes com Gemini
 
-### Chave e crédito: resolvidos
-A `GOOGLE_API_KEY` está no `.env` e o crédito do AI Studio foi pago (2026-10-06).
-Teste real **não** é bloqueio; o que vem abaixo é história de como falhou antes,
-para reconhecer o sintoma. Como o ADK, usado como biblioteca, não lê `.env`,
-carregue com `set -a; source .env; set +a` antes de rodar.
+### O ADK como biblioteca não lê `.env`
+Só a CLI do ADK carrega o `.env`. Fora dela (spike, scripts), carregue com
+`set -a; source .env; set +a` antes de rodar. `aurora-api` e `aurora-restore`
+chamam `load_dotenv` por conta própria.
 
 ### Chave válida, mas sem crédito: `402 RESOURCE_EXHAUSTED`
 A chave autentica e a requisição chega ao modelo, mas o projeto do AI Studio
@@ -186,11 +182,9 @@ Bancos antigos deixam tabelas ADK órfãs em `aurora.db`; são inofensivas.
 
 ### Fricções do E2E com terminal e processos
 - O passo 13 do `e2e_avaliador.py` usa `input()`: sem terminal (pipe, CI) dá `EOFError`.
-- `pkill -f aurora-api` pode casar com o próprio shell que contém o texto do comando e
-  matá-lo. Mate pelo PID.
 - `gemini-3.5-flash` deu 503 de alta demanda durante o E2E; `-lite` funcionou. Trocar
   `AURORA_MODELO_*` no `.env` resolve.
 - Rodando o E2E em segundo plano, a saída do script fica em buffer e o passo 13 não aparece
-  no log: use `python -u` (ou `PYTHONUNBUFFERED=1`) e `--sem-pausa`. O `.env` de exemplo
-  aponta para `gemini-3.5-flash`; exporte `AURORA_MODELO_*=gemini-3.5-flash-lite` no
-  processo da API (a variável de ambiente vence o `.env`).
+  no log: use `python -u` (ou `PYTHONUNBUFFERED=1`) e `--sem-pausa`.
+- Variável exportada no processo vence o `.env` (`load_dotenv(override=False)`): um
+  `AURORA_MODELO_*` esquecido no shell ignora a troca feita no `.env`.

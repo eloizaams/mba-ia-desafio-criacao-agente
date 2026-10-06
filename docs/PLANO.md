@@ -11,7 +11,7 @@
 - [x] Fase 5 — API (`feature/api`): spec em [`docs/specs/003-api/`](specs/003-api/spec.md). FastAPI com 6 rotas, `aurora-api`, `aurora-restore --sessoes`, 108 testes passando sem chave de API. Smoke com Gemini real pendente.
 - [x] Fase 6 — Concorrência e hardening das garantias (`feature/garantias`): spec em [`docs/specs/004-garantias/`](specs/004-garantias/spec.md). Revisão adversarial das 5 garantias (todos os vetores cobertos pelos testes existentes) e teste de disputa pela API (passo 14: ambas retornam 200, exatamente 1 reserva). 110 testes passando.
 - [x] Fase 7 — E2E do avaliador, README final. E2E real com `gemini-3.5-flash-lite` em clone limpo de `develop` (8b51920): 14 passos, 91 checagens, 0 falhas.
-- [ ] Release `v1.0.0` (`release/v1.0.0` → `main`, tag na `main`)
+- [x] Release `v1.0.0` (`release/v1.0.0` → `main`, tag na `main`)
 
 ## Decisões (ADR resumido)
 | # | Decisão | Escolha | Motivo |

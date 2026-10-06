@@ -57,24 +57,39 @@ Responde dúvidas sobre o regulamento interno.
 
 ### Garantia 1 — Cobrança ou acesso só com confirmação
 
-**Arquivo:** `src/aurora/adapters/adk/tools_reservas.py` e `src/aurora/adapters/adk/tools_visitantes.py`
+**Arquivo:** `src/aurora/adapters/adk/tools_reservas.py`, `src/aurora/adapters/adk/tools_visitantes.py` e `src/aurora/adapters/api/app.py`
 
 **Trecho:**
 ```python
-# tools_reservas.py — callable avalia a taxa da área antes de executar
-def _reserva_gera_cobranca(area: str, data: str, tool_context: ToolContext) -> bool:
-    """Só a taxa da área decide; o modelo não influencia."""
-    return servico.gera_cobranca(area)
+# tools_reservas.py — o callable avalia a taxa da área antes de executar
+    def _reserva_gera_cobranca(area: str, data: str, tool_context: ToolContext) -> bool:
+        """Garantia 1: só a taxa da área decide se a reserva precisa de confirmação.
 
-
-FunctionTool(reservar, require_confirmation=_reserva_gera_cobranca)
+        O ADK invoca este callable com os mesmos argumentos de `reservar`, então a
+        assinatura precisa acompanhar a da tool.
+        """
+        return servico.gera_cobranca(area)
+```
+```python
+# tools_reservas.py
+        FunctionTool(reservar, require_confirmation=_reserva_gera_cobranca),
 ```
 ```python
 # tools_visitantes.py — autorizar_visitante sempre confirma
-FunctionTool(autorizar_visitante, require_confirmation=True)
+        FunctionTool(autorizar_visitante, require_confirmation=True),
+```
+```python
+# api/app.py (post_confirmacao) — só aceita id pendente nesta sessão, antes de chamar o Runner
+        sessao = await _exigir_sessao(session_id)
+        # Guarda do 409: id fora da lista levanta ValueError no Runner (DESAFIOS.md)
+        if not any(p.id == corpo.id for p in pendentes(sessao.events)):
+            raise HTTPException(
+                status_code=409, detail="Confirmação não encontrada ou já respondida"
+            )
+        turno = await confirmar(runner, session_id, corpo.id, corpo.confirmado)
 ```
 
-**Por que não depende do modelo**: `require_confirmation` é avaliado pelo ADK antes de executar a tool. O modelo nunca decide se a confirmação acontece — o callable lê a taxa do banco. A rota `POST /sessoes/{id}/confirmacoes` verifica se o `id` está na lista de pendências derivadas dos eventos (`src/aurora/adapters/adk/confirmacoes.py:pendentes`) antes de acionar o Runner; qualquer `id` fora dessa lista recebe `409` sem chegar ao ADK.
+**Por que não depende do modelo**: `require_confirmation` é avaliado pelo ADK antes de executar a tool. O modelo nunca decide se a confirmação acontece — o callable lê a taxa do banco. A rota `POST /sessoes/{id}/confirmacoes` verifica se o `id` está na lista de pendências derivadas dos eventos (`src/aurora/adapters/adk/confirmacoes.py:pendentes`) antes de acionar o Runner; qualquer `id` fora dessa lista — inclusive o de uma confirmação já respondida, que deixa de estar pendente — recebe `409` sem chegar ao ADK. Mensagem do morador dizendo "já confirmei" não passa por essa rota, então não aprova nada.
 
 ---
 
@@ -119,7 +134,11 @@ return Runner(
 ```
 ```python
 # app.py (construir_app) — retomada explícita da confirmação
-App(name=NOME_RAIZ, root_agent=raiz, resumability_config=ResumabilityConfig(is_resumable=True))
+    return App(
+        name=NOME_RAIZ,
+        root_agent=raiz,
+        resumability_config=ResumabilityConfig(is_resumable=True),
+    )
 ```
 
 **Por que não depende do modelo**: `SqliteSessionService` persiste todos os eventos em um arquivo SQLite próprio (`aurora.db.sessoes`), separado do que guarda reservas e visitantes. Reiniciar o processo não apaga nada; a sessão é localizada pelo `session_id` que a rota recebe, e o Runner lê o histórico completo do banco.
@@ -132,21 +151,22 @@ App(name=NOME_RAIZ, root_agent=raiz, resumability_config=ResumabilityConfig(is_r
 
 **Trecho:**
 ```python
-# agentes.py — regulamento como AgentTool: sessão própria, sem vazar eventos
-agente_regulamento = LlmAgent(name=NOME_REGULAMENTO, ...)
-return LlmAgent(
-    name=NOME_RAIZ,
-    ...
-    sub_agents=[agente_reservas, agente_visitantes],
-    tools=[AgentTool(agente_regulamento)],  # sessão isolada
-)
+# agentes.py (construir_raiz) — regulamento como AgentTool: sessão própria, sem vazar eventos
+    return LlmAgent(
+        name=NOME_RAIZ,
+        model=modelo(NOME_RAIZ),
+        description="Assistente do Residencial Aurora: roteia o pedido do morador.",
+        instruction=INSTRUCAO_RAIZ,
+        sub_agents=[agente_reservas, agente_visitantes],
+        tools=[AgentTool(agente_regulamento)],
+    )
 ```
 ```python
-# domain/regulamento.py — no máximo dois capítulos, por pontuação de termos
-pontuados.sort(key=lambda par: par[0], reverse=True)
-melhor = pontuados[0][0]
-corte = melhor * FRACAO_QUASE_EMPATE
-return [capitulo for pontos, capitulo in pontuados[:MAXIMO_CAPITULOS] if pontos >= corte]
+# domain/regulamento.py (capitulos_relevantes) — no máximo dois capítulos, por pontuação de termos
+    pontuados.sort(key=lambda par: par[0], reverse=True)
+    melhor = pontuados[0][0]
+    corte = melhor * FRACAO_QUASE_EMPATE
+    return [capitulo for pontos, capitulo in pontuados[:MAXIMO_CAPITULOS] if pontos >= corte]
 ```
 
 **Por que não depende do modelo**: `AgentTool` executa o agente de regulamento em uma sessão separada. Os eventos dessa sessão nunca são copiados para a sessão do morador — o ADK garante isso por construção. O agente raiz não recebe o regulamento nas instruções (`INSTRUCAO_RAIZ` não menciona `regulamento.md`). A tool (`consultar_regulamento`, via `capitulos_relevantes`) devolve no máximo dois capítulos, escolhidos por termos relevantes.
@@ -164,15 +184,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_reserva_ativa_area_data
     ON reservas (area, data) WHERE status = 'ativa';
 ```
 ```python
-# sqlite.py — IntegrityError vira exceção de domínio, nunca 500
-try:
-    connection.execute("INSERT INTO reservas ...", params)
-except sqlite3.IntegrityError as erro:
-    if _AGENDA_COLUMNS in str(erro):  # violação do índice parcial (area, data)
-        raise DataIndisponivel(...) from erro
-    if _CODE_COLUMN in str(erro):  # colisão de código: tenta novo código
-        continue
-    raise
+# sqlite.py (gravar_reserva) — IntegrityError vira exceção de domínio, nunca 500
+            try:
+                with self._connection() as connection:
+                    connection.execute(
+                        "INSERT INTO reservas (codigo, apartamento, area, data, status) "
+                        "VALUES (?, ?, ?, ?, ?)",
+                        (codigo, apartamento, area, data.isoformat(), StatusReserva.ATIVA),
+                    )
+            except sqlite3.IntegrityError as erro:
+                mensagem = str(erro)
+                if _AGENDA_COLUMNS in mensagem:
+                    raise DataIndisponivel(f"{area} em {data.isoformat()}") from erro
+                if _CODE_COLUMN in mensagem:
+                    continue
+                raise
 ```
 
 **Por que não depende do modelo**: a exclusividade é imposta pelo banco no instante do `INSERT`. Não importa quantas requisições simultâneas passarem pela verificação prévia — só uma consegue gravar; a outra recebe `UNIQUE constraint failed` e devolve `data_indisponivel` como resultado normal, sem 500.
