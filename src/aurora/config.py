@@ -11,11 +11,11 @@ MODELO_PADRAO = "gemini-3.5-flash-lite"
 
 
 def database_path() -> Path:
-    return Path(os.environ.get("AURORA_DB_PATH", CAMINHO_BANCO_PADRAO))
+    return Path(os.environ.get("AURORA_DB_PATH") or CAMINHO_BANCO_PADRAO)
 
 
 def regulamento_path() -> Path:
-    return Path(os.environ.get("AURORA_REGULAMENTO_PATH", CAMINHO_REGULAMENTO_PADRAO))
+    return Path(os.environ.get("AURORA_REGULAMENTO_PATH") or CAMINHO_REGULAMENTO_PADRAO)
 
 
 def modelo_principal() -> str:

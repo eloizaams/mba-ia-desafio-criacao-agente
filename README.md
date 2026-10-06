@@ -6,7 +6,7 @@ Assistente virtual construído com Google ADK para o Residencial Aurora. Morador
 
 ## Arquitetura
 
-O assistente usa uma **topologia de quatro agentes** em torno de um agente raiz:
+O assistente usa um **agente raiz** e **três especialistas**:
 
 ### Agente raiz — `aurora`
 
@@ -95,7 +95,10 @@ async def criar_sessao(runner: Runner, apartamento: str) -> Session:
 ```python
 # state.py — tools leem, nunca escrevem
 def apartamento_da_sessao(tool_context: ToolContext) -> str:
-    return str(tool_context.state[CHAVE_APARTAMENTO])
+    apartamento = tool_context.state.get(CHAVE_APARTAMENTO)
+    if not isinstance(apartamento, str) or not apartamento:
+        raise SessaoSemApartamento(f"state['{CHAVE_APARTAMENTO}'] ausente ou inválido")
+    return apartamento
 ```
 
 **Por que não depende do modelo**: o apartamento entra no `state` na criação da sessão e nunca é sobrescrito. Nenhuma tool recebe apartamento como parâmetro — o ADK não tem como passá-lo sem que a tool o declare. `verificar_disponibilidade` devolve só `livre`/`ocupada`, sem identificar o dono da reserva.
@@ -104,20 +107,19 @@ def apartamento_da_sessao(tool_context: ToolContext) -> str:
 
 ### Garantia 3 — Nada se perde no reinício
 
-**Arquivo:** `src/aurora/adapters/adk/app.py`
+**Arquivo:** `src/aurora/adapters/adk/app.py` (`construir_runner`)
 
 **Trecho:**
 ```python
-# app.py — sessões e eventos persistidos em SQLite
-def construir_runner(banco: Path) -> Runner:
-    session_service = SqliteSessionService(db_path=str(banco))
-    app = App(
-        agent=construir_raiz(...),
-        session_service=session_service,
-        memory_service=InMemoryMemoryService(),
-        resumability_config=ResumabilityConfig(is_resumable=True),
-    )
-    return Runner(app=app, session_service=session_service, ...)
+# app.py — sessões e eventos persistidos no mesmo SQLite dos dados do condomínio
+return Runner(
+    app=construir_app(banco=caminho, regulamento=regulamento, modelo=modelo),
+    session_service=SqliteSessionService(db_path=str(caminho)),
+)
+```
+```python
+# app.py (construir_app) — retomada explícita da confirmação
+App(name=NOME_RAIZ, root_agent=raiz, resumability_config=ResumabilityConfig(is_resumable=True))
 ```
 
 **Por que não depende do modelo**: `SqliteSessionService` persiste todos os eventos no mesmo arquivo SQLite que guarda reservas e visitantes. Reiniciar o processo não apaga nada; a sessão é localizada pelo `session_id` que a rota recebe, e o Runner lê o histórico completo do banco.
@@ -126,7 +128,7 @@ def construir_runner(banco: Path) -> Runner:
 
 ### Garantia 4 — O regulamento é consultado, não carregado
 
-**Arquivo:** `src/aurora/adapters/adk/agentes.py` e `src/aurora/adapters/regulamento.py`
+**Arquivo:** `src/aurora/adapters/adk/agentes.py` e `src/aurora/domain/regulamento.py`
 
 **Trecho:**
 ```python
@@ -140,13 +142,14 @@ return LlmAgent(
 )
 ```
 ```python
-# domain/regulamento.py — devolve no máximo 2 capítulos por consulta
-def consultar(topico: str) -> ResultadoConsulta:
-    pontuados = _pontuar(topico, self._capitulos)
-    return _selecionar(pontuados)  # ≤ 2 capítulos
+# domain/regulamento.py — no máximo dois capítulos, por pontuação de termos
+pontuados.sort(key=lambda par: par[0], reverse=True)
+melhor = pontuados[0][0]
+corte = melhor * FRACAO_QUASE_EMPATE
+return [capitulo for pontos, capitulo in pontuados[:MAXIMO_CAPITULOS] if pontos >= corte]
 ```
 
-**Por que não depende do modelo**: `AgentTool` executa o agente de regulamento em uma sessão separada. Os eventos dessa sessão nunca são copiados para a sessão do morador — o ADK garante isso por construção. O agente raiz não recebe o regulamento nas instruções (`INSTRUCAO_RAIZ` não menciona `regulamento.md`). A tool devolve no máximo dois capítulos, escolhidos por termos relevantes.
+**Por que não depende do modelo**: `AgentTool` executa o agente de regulamento em uma sessão separada. Os eventos dessa sessão nunca são copiados para a sessão do morador — o ADK garante isso por construção. O agente raiz não recebe o regulamento nas instruções (`INSTRUCAO_RAIZ` não menciona `regulamento.md`). A tool (`consultar_regulamento`, via `capitulos_relevantes`) devolve no máximo dois capítulos, escolhidos por termos relevantes.
 
 ---
 
@@ -201,6 +204,8 @@ cp .env.example .env
 | `AURORA_DB_PATH` | — | Caminho do banco SQLite (padrão: `aurora.db`) |
 
 > Se a API devolver `503`, troque o modelo por `gemini-3.5-flash` no `.env`. A disponibilidade oscila por modelo e janela de tempo.
+
+> Todos os comandos abaixo rodam **da raiz do repositório**: `dados/` e `aurora.db` são caminhos relativos.
 
 ### Instalar dependências
 
