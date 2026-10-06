@@ -24,7 +24,7 @@
 | D7 | SDD | Próprio enxuto: `docs/constitution.md` + `docs/specs/NNN-nome/{spec,plan,tasks}.md` | Leve e rastreável |
 | D8 | Git | Git Flow completo, tag `v1.0.0` na `main` | Disciplina de entrega; `main` = entregável |
 | D9 | Idioma | Domínio PT, infra EN | Casa com o contrato da API |
-| D10 | Modelo | `gemini-3.8-flash` nos dois papéis | Definido na Fase 2: Flash estável mais recente (out/2026). Pro só existe em preview; a série 2.5 dos exemplos do ADK está legada |
+| D10 | Modelo | `gemini-3.5-flash` nos dois papéis | Definido na Fase 2. Passou a topologia inteira em execução real; `gemini-3.8-flash` deu 503 de alta demanda na mesma janela. Pro só existe em preview; a série 2.5 dos exemplos do ADK está legada |
 | D11 | Teste sem LLM | `ScriptedLlm` (subclasse de `BaseLlm`) reativo ao histórico | Fase 2: permite testar confirmação, retomada e persistência no CI sem `GOOGLE_API_KEY` |
 
 ## Estrutura alvo
@@ -57,7 +57,7 @@ Os seis pontos foram validados por execução, em `spike/`:
 3. ✅ Vale entre processos (cada subcomando do spike é um processo novo; só o SQLite atravessa).
 4. ✅ `is_resumable=True` + sub-agente com transferência livre.
 5. ✅ `AgentTool` não vaza eventos para a sessão do pai.
-6. ✅ `gemini-3.8-flash`.
+6. ✅ `gemini-3.5-flash` (troca de `gemini-3.8-flash` após 503 persistente; ver `DESAFIOS.md`).
 
 Saídas: [`docs/ADK-CONFIRMACAO.md`](ADK-CONFIRMACAO.md) (padrão comprovado),
 [`DESAFIOS.md`](../DESAFIOS.md) (frições), `spike/` (código descartável, não vai para a `main`).

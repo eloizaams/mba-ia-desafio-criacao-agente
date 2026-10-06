@@ -135,17 +135,21 @@ deprecado. Em troca, dispensa SQLAlchemy.
 Catálogo da Gemini API em outubro de 2026:
 
 - `gemini-3.8-flash` — Flash estável (GA) mais recente, posicionado para
-  "autonomous agents and complex enterprise workflows".
+  "autonomous agents and complex enterprise workflows". Deu `503 UNAVAILABLE`
+  (alta demanda) em todas as tentativas de uma janela de vários minutos.
+- `gemini-3.5-flash` — Flash estável. Única opção que respondeu durante os
+  testes reais; a topologia inteira (T3 a T6) passou nele.
 - `gemini-3.5-flash-lite` — estável, mais barato.
 - `gemini-3.1-pro-preview` — Pro **em preview**; não há Pro estável.
 - A série 2.5 (`gemini-2.5-flash`, `gemini-2.5-pro`) é **legada**, com acesso
   restrito a projetos existentes. Não usar, apesar de ser o default em exemplos
   do ADK.
 
-Escolha para Aurora: `gemini-3.8-flash` nos dois papéis (roteador e
-especialistas) — estável, bom em tool calling, sem preview em produção.
-`AURORA_MODELO_ESPECIALISTA` pode virar `gemini-3.5-flash-lite` se o custo
-pesar; os nomes já estão parametrizados no `.env.example`.
+Escolha para Aurora: `gemini-3.5-flash` nos dois papéis (roteador e
+especialistas) — estável, passou nos testes reais com tool calling e
+confirmação. `AURORA_MODELO_ESPECIALISTA` pode virar `gemini-3.5-flash-lite` se
+o custo pesar; os nomes já estão parametrizados no `.env.example`. Se o 503
+voltar, trocar o modelo é só mudança de configuração.
 
 ## Como isso vira código na Fase 4/5
 

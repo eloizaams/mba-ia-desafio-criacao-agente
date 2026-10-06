@@ -42,7 +42,7 @@ Decisões que atravessam vários arquivos e não se descobrem lendo um só:
 3. **Confirmação.** Tool com `require_confirmation` gera o evento `adk_request_confirmation`. `confirmacoes_pendentes` é derivado dos eventos da sessão (call sem function response de mesmo id), sem estado extra. `POST /confirmacoes` envia um `FunctionResponse` com esse id pelo Runner, e a rota responde 409 se o id não estiver pendente. O App usa `ResumabilityConfig(is_resumable=True)`. Detalhes em `docs/ADK-CONFIRMACAO.md`.
 4. **Persistência.** SQLite, com sessões ADK via `SqliteSessionService`. `DatabaseSessionService` exige o extra `[db]` (SQLAlchemy), que o projeto não instala. A exclusividade de reserva é uma constraint: índice único parcial `(area, data) WHERE status='ativa'`. O `IntegrityError` na gravação vira resultado de domínio "data indisponível", nunca 500. Cancelamento marca `status='cancelada'`, e o código de reserva nunca é reaproveitado.
 5. **`dados/` é somente leitura** (constituição 8). `aurora-restore` recria o banco a partir dos JSON; as mudanças da conversa vão para o banco.
-6. **Modelos.** `gemini-3.8-flash` nos dois papéis, por variáveis `AURORA_MODELO_*`. Os testes que não usam chave usam `spike/scripted_llm.py` (`ScriptedLlm`): ele decide o turno a partir do histórico, não de um contador.
+6. **Modelos.** `gemini-3.5-flash` nos dois papéis, por variáveis `AURORA_MODELO_*`. Os testes que não usam chave usam `spike/scripted_llm.py` (`ScriptedLlm`): ele decide o turno a partir do histórico, não de um contador.
 
 ## Convenções do projeto
 
