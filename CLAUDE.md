@@ -29,7 +29,7 @@ uv run pre-commit run --all-files          # hooks fora do commit
 
 ## Estado atual
 
-Fase 5 concluída. `adapters/api/` implementado: `schemas.py`, `app.py` (`criar_api`), `main.py` (`aurora-api`). `adapters/adk/conversa.py` e `eventos.py` criados; `tests/support/conversa.py` usa o código de produção. `ApartamentoRepository.existe` adicionado a `ports.py` e `SqliteRepository`. `aurora-restore --sessoes` implementado. 108 testes passam sem chave de API. Smoke com Gemini real pendente (ver `tasks.md`). Próxima: Fase 6 — concorrência e hardening.
+Fases 1–7 implementadas (PR #7 mergeado em `develop`). 110+ testes passam sem chave de API. `scripts/e2e_avaliador.py` reproduz o fluxo do avaliador contra a API no ar. Pendente: E2E com Gemini real num clone limpo e release `v1.0.0` (`release/*` → `main`, com tag). Revisão geral em `docs/REVISAO-ENTREGA.md`.
 
 ## Comandos extras
 

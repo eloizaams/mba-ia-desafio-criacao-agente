@@ -5,4 +5,4 @@
 - [x] `tests/integration/test_concorrencia_api.py` criado (passo 14)
 - [x] CI verde (`ruff check`, `ruff format --check`, `mypy`, `pytest`) — 110 testes
 - [x] PR revisado com `code-review` e smells aplicados
-- [ ] PR aberto e merge em `develop`
+- [x] PR aberto (#6) e merge em `develop`
