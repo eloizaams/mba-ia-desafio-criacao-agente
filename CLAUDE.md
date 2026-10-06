@@ -10,11 +10,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Comandos
 
-Python 3.12 com uv. O ADK está fixado em `google-adk==2.11.0`; não suba a versão sem rerodar o spike antes.
+Python 3.12 com uv. O ADK está fixado em `google-adk==2.11.0`; não suba a versão sem rerodar o spike antes (código na tag `spike-fase-2`).
 
 ```bash
 uv sync                                    # instala o uv.lock
-uv run ruff check                          # lint, inclui spike/
+uv run ruff check                          # lint
 uv run ruff format --check                 # formatação
 uv run mypy                                # strict em src/aurora e tests
 uv run pytest                              # suíte completa, sem chave de API
@@ -25,11 +25,11 @@ uv run pre-commit run --all-files          # hooks fora do commit
 - O CI (`.github/workflows/ci.yml`) roda exatamente `ruff check`, `ruff format --check`, `mypy` e `pytest`. Rode os quatro antes de abrir PR.
 - Os hooks do pre-commit só valem neste clone depois de `uv run pre-commit install`.
 - Chamadas reais ao Gemini precisam de `GOOGLE_API_KEY` no ambiente. O ADK, como biblioteca, não lê `.env` (só a CLI lê), então carregue com `set -a; source .env; set +a`.
-- Comandos do spike: `docs/ADK-CONFIRMACAO.md`. Com `AURORA_LLM=real` o spike usa o Gemini de verdade, com os `AURORA_MODELO_*` do ambiente, em vez do `ScriptedLlm`.
+- Comandos do spike: `docs/ADK-CONFIRMACAO.md` (código: `git worktree add ../aurora-spike spike-fase-2`). Com `AURORA_LLM=real` o spike usa o Gemini de verdade, com os `AURORA_MODELO_*` do ambiente, em vez do `ScriptedLlm`.
 
 ## Estado atual
 
-Fase 2 concluída (spike em `spike/`, descartável). `src/aurora/` ainda contém só `__init__.py`. A arquitetura abaixo é o alvo das Fases 3 a 5 (`docs/PLANO.md`), não código existente.
+Fase 2 concluída (spike na tag `spike-fase-2`, descartado da branch). `src/aurora/` ainda contém só `__init__.py`. A arquitetura abaixo é o alvo das Fases 3 a 5 (`docs/PLANO.md`), não código existente.
 
 ## Arquitetura alvo
 
@@ -42,7 +42,7 @@ Decisões que atravessam vários arquivos e não se descobrem lendo um só:
 3. **Confirmação.** Tool com `require_confirmation` gera o evento `adk_request_confirmation`. `confirmacoes_pendentes` é derivado dos eventos da sessão (call sem function response de mesmo id), sem estado extra. `POST /confirmacoes` envia um `FunctionResponse` com esse id pelo Runner, e a rota responde 409 se o id não estiver pendente. O App usa `ResumabilityConfig(is_resumable=True)`. Detalhes em `docs/ADK-CONFIRMACAO.md`.
 4. **Persistência.** SQLite, com sessões ADK via `SqliteSessionService`. `DatabaseSessionService` exige o extra `[db]` (SQLAlchemy), que o projeto não instala. A exclusividade de reserva é uma constraint: índice único parcial `(area, data) WHERE status='ativa'`. O `IntegrityError` na gravação vira resultado de domínio "data indisponível", nunca 500. Cancelamento marca `status='cancelada'`, e o código de reserva nunca é reaproveitado.
 5. **`dados/` é somente leitura** (constituição 8). `aurora-restore` recria o banco a partir dos JSON; as mudanças da conversa vão para o banco.
-6. **Modelos.** `gemini-3.5-flash` nos dois papéis, por variáveis `AURORA_MODELO_*`. Os testes que não usam chave usam `spike/scripted_llm.py` (`ScriptedLlm`): ele decide o turno a partir do histórico, não de um contador.
+6. **Modelos.** `gemini-3.5-flash` nos dois papéis, por variáveis `AURORA_MODELO_*`. Os testes que não usam chave usam `tests/support/scripted_llm.py` (`ScriptedLlm`): ele decide o turno a partir do histórico, não de um contador.
 
 ## Convenções do projeto
 
