@@ -190,3 +190,7 @@ Bancos antigos deixam tabelas ADK órfãs em `aurora.db`; são inofensivas.
   matá-lo. Mate pelo PID.
 - `gemini-3.5-flash` deu 503 de alta demanda durante o E2E; `-lite` funcionou. Trocar
   `AURORA_MODELO_*` no `.env` resolve.
+- Rodando o E2E em segundo plano, a saída do script fica em buffer e o passo 13 não aparece
+  no log: use `python -u` (ou `PYTHONUNBUFFERED=1`) e `--sem-pausa`. O `.env` de exemplo
+  aponta para `gemini-3.5-flash`; exporte `AURORA_MODELO_*=gemini-3.5-flash-lite` no
+  processo da API (a variável de ambiente vence o `.env`).

@@ -29,7 +29,7 @@ uv run pre-commit run --all-files          # hooks fora do commit
 
 ## Estado atual
 
-Fases 1–7 implementadas (PR #7 mergeado em `develop`). 110+ testes passam sem chave de API. `scripts/e2e_avaliador.py` reproduz o fluxo do avaliador contra a API no ar. Pendente: E2E com Gemini real num clone limpo e release `v1.0.0` (`release/*` → `main`, com tag). Revisão geral em `docs/REVISAO-ENTREGA.md`.
+Fases 1–7 implementadas e E2E real com Gemini (`gemini-3.5-flash-lite`) passando em clone limpo: 14 passos, 0 falhas. 114 testes passam sem chave de API. `scripts/e2e_avaliador.py` reproduz o fluxo do avaliador contra a API no ar. Pendente: release `v1.0.0` (`release/*` → `main`, com tag). Revisão geral em `docs/REVISAO-ENTREGA.md`.
 
 ## Comandos extras
 
