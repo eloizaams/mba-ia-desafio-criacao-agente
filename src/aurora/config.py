@@ -3,9 +3,11 @@ from pathlib import Path
 
 CAMINHO_BANCO_PADRAO = "aurora.db"
 CAMINHO_REGULAMENTO_PADRAO = "dados/regulamento.md"
-# Escolha da Fase 2: estável e aprovado em execução real com tool calling e confirmação
-# (ver docs/ADK-CONFIRMACAO.md). Trocar de modelo é mudança de ambiente, não de código.
-MODELO_PADRAO = "gemini-3.5-flash"
+# Escolha da Fase 4: rodou o fluxo inteiro do avaliador em execução real — roteamento,
+# tool calling, confirmação, retomada e AgentTool — e é o mais barato dos estáveis. O
+# `gemini-3.5-flash` é a alternativa, e trocar é mudança de ambiente, não de código:
+# a disponibilidade dos modelos oscila por janela (ver DESAFIOS.md).
+MODELO_PADRAO = "gemini-3.5-flash-lite"
 
 
 def database_path() -> Path:

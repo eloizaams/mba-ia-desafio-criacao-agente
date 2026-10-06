@@ -24,7 +24,7 @@
 | D7 | SDD | Próprio enxuto: `docs/constitution.md` + `docs/specs/NNN-nome/{spec,plan,tasks}.md` | Leve e rastreável |
 | D8 | Git | Git Flow completo, tag `v1.0.0` na `main` | Disciplina de entrega; `main` = entregável |
 | D9 | Idioma | Domínio PT, infra EN | Casa com o contrato da API |
-| D10 | Modelo | `gemini-3.5-flash` nos dois papéis | Definido na Fase 2. Passou a topologia inteira em execução real; `gemini-3.8-flash` deu 503 de alta demanda na mesma janela. Pro só existe em preview; a série 2.5 dos exemplos do ADK está legada |
+| D10 | Modelo | `gemini-3.5-flash-lite` nos dois papéis, `gemini-3.5-flash` como alternativa | Revisado na Fase 4: o `-lite` passou o fluxo inteiro do avaliador em execução real e é o mais barato dos estáveis, enquanto o `3.5-flash` deu 503 naquela janela (na Fase 2 foi o contrário). A capacidade oscila por modelo e horário, então a escolha é variável de ambiente. Pro só existe em preview; a série 2.5 dos exemplos do ADK está legada |
 | D11 | Teste sem LLM | `ScriptedLlm` (subclasse de `BaseLlm`) reativo ao histórico | Fase 2: permite testar confirmação, retomada e persistência no CI sem `GOOGLE_API_KEY` |
 
 ## Estrutura alvo
