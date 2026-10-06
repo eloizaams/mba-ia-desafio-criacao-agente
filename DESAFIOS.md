@@ -2,23 +2,8 @@
 
 Pontos que custaram tempo e podem reaparecer. Ler ao iniciar uma sessão nova.
 
-## Git
-
-### Refs locais defasados depois de merge pelo GitHub
-**Sintoma:** `git log`/`git rev-parse` mostram `develop` e `main` atrasados e eu
-concluí que a Fase 1 não tinha sido mergeada — ela tinha, via PRs #1 e #2 na
-interface do GitHub.
-**Correção:** `git fetch --all --prune` **antes** de qualquer leitura de estado de
-branch. O `gitStatus` que vem no início da sessão é um retrato do disco, não do
-remoto.
-
-### PR aberto antes do último commit da branch
-**Sintoma:** o PR #1 (`feature/setup` → `develop`) foi mergeado sem o commit
-`ef0a894` (`docs/enunciado-original.md`), que entrou depois. Resultado: `main`
-ficou à frente de `develop`.
-**Correção:** back-merge `main` → `develop` para reconvergir. Evitar: empurrar
-commits novos para a branch **antes** de mergear o PR, ou conferir
-`git log origin/<branch>..HEAD` antes de mergear.
+> Fricções de git (refs defasados, PR mergeado sem o último commit) não ficam aqui:
+> são do fluxo do usuário, não do projeto. Estão na skill `abrir-pr`.
 
 ## ADK 2.11.0
 
