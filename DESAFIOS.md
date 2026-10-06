@@ -37,6 +37,26 @@ O código do ADK 2.11 cita `gemini-2.5-flash` 32 vezes, mas a série 2.5 está
 **legada**, com acesso restrito a projetos existentes. Conferir sempre em
 `ai.google.dev/gemini-api/docs/models` em vez de copiar dos exemplos.
 
+## SQLite
+
+### Índice único parcial não aparece pelo nome na mensagem de erro
+Com `CREATE UNIQUE INDEX ... WHERE status='ativa'`, a violação vira
+`UNIQUE constraint failed: reservas.area, reservas.data`. O nome do índice
+(`uq_reserva_ativa_area_data`) não aparece. Já `UNIQUE(codigo)` aparece como
+`reservas.codigo`. Para distinguir os dois, o adaptador checa as colunas.
+Testes de integração (`tests/integration/test_repositorio_reservas.py`) cobrem os dois casos.
+
+### `IntegrityError` não separa as constraints
+`IntegrityError` cobre `UNIQUE`, `FOREIGN KEY` e `CHECK`. Para tratar só a
+agenda como "data indisponível", é preciso olhar a mensagem. Uma FK inválida
+(área ou apartamento inexistente) ainda sobe como `IntegrityError`, então a
+camada de aplicação precisa validar a existência antes de gravar.
+
+### `executescript` fecha a transação aberta
+`Connection.executescript` faz COMMIT antes de rodar o script. Dentro de
+`with conexao:`, o DDL sai da transação sem aviso. Criar o schema fora do
+bloco transacional e deixar só os DML dentro.
+
 ## Testes com LLM
 
 ### Testar agentes sem chave de API

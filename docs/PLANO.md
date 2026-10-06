@@ -6,7 +6,7 @@
 - [x] Fase 0 — Decisões de alto nível (este documento)
 - [x] Fase 1 — Setup do projeto (`feature/setup`): ADK fixado em `2.11.0` (mais recente da série 2 no PyPI), `uv.lock` gerado, ruff/mypy/pytest/pre-commit configurados, CI em `.github/workflows/ci.yml`.
 - [x] Fase 2 — Spike ADK (`spike/adk-confirmacao`, código na tag `spike-fase-2`): padrão de confirmação/retomada comprovado em execução, sem chave de API. Resultados em [`docs/ADK-CONFIRMACAO.md`](ADK-CONFIRMACAO.md); frições em [`DESAFIOS.md`](../DESAFIOS.md).
-- [ ] Fase 3 — Domínio + persistência + restauração (`feature/dominio-persistencia`)
+- [x] Fase 3 — Domínio + persistência + restauração (`feature/dominio-persistencia`): domínio, portas, SQLite com índice parcial, `aurora-restore`, testes. Spec em [`docs/specs/001-dominio-persistencia/`](specs/001-dominio-persistencia/spec.md).
 - [ ] Fase 4 — Tools + agentes (`feature/agentes`)
 - [ ] Fase 5 — API (`feature/api`)
 - [ ] Fase 6 — Concorrência e hardening das garantias (`feature/garantias`)
@@ -69,7 +69,7 @@ de verdade produz o mesmo fluxo de eventos. A mecânica já está provada.
 - Tabelas: `areas`, `apartamentos`, `reservas(codigo UNIQUE, apartamento, area, data, status)`, índice único parcial `(area, data) WHERE status='ativa'`; `visitantes`.
 - Cancelamento = `status='cancelada'` (código nunca é reaproveitado — regra 5). Código gerado pelo sistema, com retry em colisão.
 - `IntegrityError` na gravação → resultado de domínio "data indisponível" (Garantia 5, sem 500).
-- `aurora-restore` recria a partir de `dados/*.json`.
+- `aurora-restore` recria a partir de `dados/*.json`. `--sessoes` (limpar sessões ADK) fica para a Fase 5.
 - Testes: unitários + concorrência (N gravações simultâneas → 1 vence).
 
 ### Fase 4 — Tools + agentes

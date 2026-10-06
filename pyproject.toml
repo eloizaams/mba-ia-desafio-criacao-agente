@@ -12,6 +12,9 @@ dependencies = [
     "aiosqlite>=0.20",
 ]
 
+[project.scripts]
+aurora-restore = "aurora.adapters.persistence.restore:main"
+
 [dependency-groups]
 dev = [
     "pytest>=8.3",
