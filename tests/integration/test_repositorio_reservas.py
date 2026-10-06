@@ -6,8 +6,8 @@ from aurora.adapters.persistence import sqlite as modulo_sqlite
 from aurora.adapters.persistence.sqlite import SqliteRepository
 from aurora.domain.erros import DataIndisponivel, ReservaNaoEncontrada
 from aurora.domain.reserva import StatusReserva
+from tests.support.condominio import SALAO
 
-SALAO = "salao-de-festas"
 DATA = date(2030, 4, 20)
 
 

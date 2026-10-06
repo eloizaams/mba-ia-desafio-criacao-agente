@@ -2,13 +2,13 @@
 
 from dataclasses import dataclass
 
-from aurora.application.portas import VisitanteRepository
+from aurora.application.ports import VisitanteRepository
 from aurora.domain.datas import data_de_texto
 from aurora.domain.visitante import Visitante
 
 
 @dataclass(frozen=True)
-class ServicoVisitantes:
+class VisitantesService:
     visitantes: VisitanteRepository
 
     def meus_visitantes(self, apartamento: str) -> list[Visitante]:

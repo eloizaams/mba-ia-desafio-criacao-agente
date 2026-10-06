@@ -1,11 +1,8 @@
 """Garantia 4: o regulamento é consultado, não carregado (passo 12)."""
 
-from collections.abc import Callable
-
-from google.adk.runners import Runner
-
 from aurora.adapters.adk.agentes import INSTRUCAO_RAIZ, NOME_RAIZ, NOME_REGULAMENTO
 from aurora.adapters.adk.sessoes import buscar_sessao, criar_sessao
+from tests.support.condominio import FabricaDeRunner
 from tests.support.conversa import enviar, eventos_em_texto
 from tests.support.scripted_llm import ScriptedLlm
 
@@ -15,8 +12,6 @@ FECHAMENTO_NO_DOMINGO = "20h"
 # Trechos de capítulos que tratam de outros assuntos. Se qualquer um aparecer na sessão
 # do morador, o regulamento virou contexto carregado — é o que a Garantia 4 proíbe.
 TRECHOS_DE_OUTROS_CAPITULOS = ("brinquedoteca", "anilhas", "coleta seletiva", "vaga de garagem")
-
-FabricaDeRunner = Callable[[], Runner]
 
 
 def _roteiro_do_regulamento(modelos: dict[str, ScriptedLlm]) -> None:
@@ -75,3 +70,34 @@ def test_o_agente_principal_nao_recebe_o_regulamento_nas_instrucoes() -> None:
     assert "Art." not in INSTRUCAO_RAIZ
     assert "Capítulo" not in INSTRUCAO_RAIZ
     assert "regulamento" in INSTRUCAO_RAIZ
+
+
+async def test_topico_sem_capitulo_leva_a_uma_segunda_consulta_por_titulo(
+    novo_runner: FabricaDeRunner, modelos: dict[str, ScriptedLlm]
+) -> None:
+    """Spec 002: "se nada casar, só os títulos, para uma segunda tentativa".
+
+    O índice de títulos é o que permite ao agente acertar o capítulo sem nunca
+    receber o documento inteiro.
+    """
+    modelos[NOME_RAIZ] = ScriptedLlm(
+        chamar=NOME_REGULAMENTO, argumentos={"request": "posso ter cachorro?"}
+    )
+    modelos[NOME_REGULAMENTO] = ScriptedLlm(
+        chamar="consultar_regulamento",
+        argumentos={"topico": "cachorro"},
+        campo_vazio="capitulos",
+        segunda_chamada={"topico": "Capítulo VIII: Animais de estimação"},
+        foco="animais",
+    )
+    runner = novo_runner()
+    sessao = await criar_sessao(runner, "101")
+
+    await enviar(runner, sessao.id, "Posso ter cachorro no apartamento?")
+
+    eventos = await eventos_em_texto(runner, sessao.id)
+    # Só a segunda consulta devolve capítulo: "cachorro" não casa com nenhum título e a
+    # primeira volta com `capitulos` vazio. Capítulo na resposta = a retentativa rodou.
+    assert '\\"capitulos\\": [{' in eventos
+    assert "Capítulo VIII: Animais de estimação" in eventos
+    assert [trecho for trecho in TRECHOS_DE_OUTROS_CAPITULOS if trecho in eventos.lower()] == []

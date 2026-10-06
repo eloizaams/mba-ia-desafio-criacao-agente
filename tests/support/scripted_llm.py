@@ -44,7 +44,11 @@ class ScriptedLlm(BaseLlm):
     - `argumentos`: argumentos dessa chamada;
     - `foco`: quando o resultado da tool chega, o modelo responde com a primeira
       frase do resultado que contém este termo. É o que faz o teste do regulamento
-      provar que a resposta saiu do capítulo recuperado, e não do roteiro.
+      provar que a resposta saiu do capítulo recuperado, e não do roteiro;
+    - `campo_vazio` + `segunda_chamada`: se o resultado vier com esse campo vazio,
+      chama a mesma tool outra vez com outros argumentos. É o caminho de segunda
+      tentativa do regulamento. Só uma vez — roteiro sem porta de saída estoura o
+      limite de 500 chamadas do ADK (DESAFIOS.md).
     """
 
     model: str = "scripted-llm"
@@ -52,6 +56,8 @@ class ScriptedLlm(BaseLlm):
     chamar: str | None = None
     argumentos: dict[str, Any] = Field(default_factory=dict)
     foco: str = ""
+    campo_vazio: str = ""
+    segunda_chamada: dict[str, Any] = Field(default_factory=dict)
 
     @property
     def capabilities(self) -> Any:
@@ -70,6 +76,9 @@ class ScriptedLlm(BaseLlm):
         #    limite de 500 chamadas ao modelo (DESAFIOS.md).
         resposta = _resposta_de_tool(ultimo)
         if resposta is not None:
+            if self._tenta_de_novo(llm_request, resposta) and self.chamar:
+                yield _chamada(self.chamar, dict(self.segunda_chamada))
+                return
             yield _texto(self._responder(resposta))
             return
 
@@ -84,6 +93,15 @@ class ScriptedLlm(BaseLlm):
             return
 
         yield _texto(f"Nada a fazer com: {_texto_do_turno(ultimo)!r}")
+
+    def _tenta_de_novo(self, llm_request: LlmRequest, resposta: types.FunctionResponse) -> bool:
+        """Segunda e última tentativa, quando o resultado veio sem o que se procurava."""
+        if not (self.segunda_chamada and self.campo_vazio):
+            return False
+        payload = resposta.response or {}
+        if payload.get(self.campo_vazio):
+            return False
+        return _quantas_respostas_de(llm_request, resposta.name or "") == 1
 
     def _responder(self, resposta: types.FunctionResponse) -> str:
         bruto = json.dumps(resposta.response, ensure_ascii=False)
@@ -110,6 +128,15 @@ def _resposta_de_tool(content: types.Content | None) -> types.FunctionResponse |
             continue
         return resposta
     return None
+
+
+def _quantas_respostas_de(llm_request: LlmRequest, nome_tool: str) -> int:
+    return sum(
+        1
+        for content in llm_request.contents or []
+        for part in content.parts or []
+        if part.function_response is not None and part.function_response.name == nome_tool
+    )
 
 
 def _texto_do_turno(content: types.Content | None) -> str:

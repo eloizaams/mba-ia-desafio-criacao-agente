@@ -37,7 +37,6 @@ class PendenciaConfirmacao:
     acao: str
     detalhes: dict[str, Any] = field(default_factory=dict)
     tool: str = ""
-    autor: str = ""
 
 
 def pendentes(eventos: list[Event]) -> list[PendenciaConfirmacao]:
@@ -47,7 +46,7 @@ def pendentes(eventos: list[Event]) -> list[PendenciaConfirmacao]:
     for evento in eventos:
         for chamada in evento.get_function_calls():
             if chamada.name == CONFIRMACAO and chamada.id:
-                pedidos[chamada.id] = _pendencia(chamada.id, chamada.args or {}, evento.author)
+                pedidos[chamada.id] = _pendencia(chamada.id, chamada.args or {})
         for resposta in evento.get_function_responses():
             if resposta.name == CONFIRMACAO and resposta.id:
                 respondidos.add(resposta.id)
@@ -75,7 +74,7 @@ def resposta_de_confirmacao(id_da_pendencia: str, confirmado: bool) -> types.Con
     )
 
 
-def _pendencia(id_: str, args: dict[str, Any], autor: str) -> PendenciaConfirmacao:
+def _pendencia(id_: str, args: dict[str, Any]) -> PendenciaConfirmacao:
     original = args.get("originalFunctionCall") or {}
     tool = str(original.get("name") or "")
     detalhes = original.get("args")
@@ -84,5 +83,4 @@ def _pendencia(id_: str, args: dict[str, Any], autor: str) -> PendenciaConfirmac
         acao=ACAO_POR_TOOL.get(tool, f"Executar {tool}" if tool else "Confirmar ação"),
         detalhes=dict(detalhes) if isinstance(detalhes, dict) else {},
         tool=tool,
-        autor=autor,
     )

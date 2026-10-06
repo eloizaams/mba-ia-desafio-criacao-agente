@@ -1,38 +1,69 @@
 """Passo 15: o contrato das tools, verificado na estrutura e não na leitura.
 
-Nenhuma tool aceita apartamento, e só as duas ações que geram cobrança ou liberam
-acesso exigem confirmação. Se alguém acrescentar um parâmetro ou esquecer uma
-confirmação, estes testes caem.
+As tools saem da topologia de verdade (`construir_raiz`), caminhando pelo root, pelos
+`sub_agents` e pelo agente embrulhado em `AgentTool`. Montar a lista pelas fábricas
+deixaria passar uma tool pendurada direto num agente.
 """
 
 import inspect
 from pathlib import Path
 
 import pytest
+from google.adk.agents.llm_agent import LlmAgent
+from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.function_tool import FunctionTool
 
-from aurora.adapters.adk.tools_regulamento import tools_de_regulamento
-from aurora.adapters.adk.tools_reservas import tools_de_reservas
-from aurora.adapters.adk.tools_visitantes import tools_de_visitantes
+from aurora.adapters.adk.agentes import construir_raiz
 from aurora.adapters.persistence.sqlite import SqliteRepository
 from aurora.adapters.regulamento import RegulamentoArquivo
-from aurora.application.regulamento import ServicoRegulamento
-from aurora.application.reservas import ServicoReservas
-from aurora.application.visitantes import ServicoVisitantes
+from aurora.application.regulamento import RegulamentoService
+from aurora.application.reservas import ReservasService
+from aurora.application.visitantes import VisitantesService
 
 PALAVRAS_PROIBIDAS = ("apartamento", "apto", "unidade", "morador")
 TOOLS_QUE_CONFIRMAM = {"reservar", "autorizar_visitante"}
+TOOLS_ESPERADAS = {
+    "listar_areas",
+    "listar_minhas_reservas",
+    "verificar_disponibilidade",
+    "reservar",
+    "cancelar_minha_reserva",
+    "listar_meus_visitantes",
+    "autorizar_visitante",
+    "consultar_regulamento",
+}
+
+
+def _tools_do_agente(agente: LlmAgent) -> list[FunctionTool]:
+    """Todas as FunctionTool alcançáveis a partir deste agente, inclusive via AgentTool."""
+    encontradas: list[FunctionTool] = []
+    for tool in agente.tools:
+        if isinstance(tool, FunctionTool):
+            encontradas.append(tool)
+        elif isinstance(tool, AgentTool) and isinstance(tool.agent, LlmAgent):
+            encontradas.extend(_tools_do_agente(tool.agent))
+    for sub_agente in agente.sub_agents:
+        if isinstance(sub_agente, LlmAgent):
+            encontradas.extend(_tools_do_agente(sub_agente))
+    return encontradas
 
 
 @pytest.fixture
 def tools() -> list[FunctionTool]:
-    """As tools de verdade. Nenhuma é chamada aqui, então o banco nem precisa existir."""
+    """A topologia de verdade. Nenhuma tool é chamada aqui, então o banco nem precisa existir."""
     repositorio = SqliteRepository(Path("nao-abre.db"))
-    return [
-        *tools_de_reservas(ServicoReservas(agenda=repositorio, areas=repositorio)),
-        *tools_de_visitantes(ServicoVisitantes(visitantes=repositorio)),
-        *tools_de_regulamento(ServicoRegulamento(fonte=RegulamentoArquivo(Path("nao-abre.md")))),
-    ]
+    raiz = construir_raiz(
+        reservas=ReservasService(agenda=repositorio, areas=repositorio),
+        visitantes=VisitantesService(visitantes=repositorio),
+        regulamento=RegulamentoService(fonte=RegulamentoArquivo(Path("nao-abre.md"))),
+        modelo=lambda _: "modelo-de-teste",
+    )
+    return _tools_do_agente(raiz)
+
+
+def test_a_topologia_expoe_exatamente_as_tools_da_spec(tools: list[FunctionTool]) -> None:
+    """Tool nova que não passe por aqui não seria vista pelos dois testes abaixo."""
+    assert {tool.name for tool in tools} == TOOLS_ESPERADAS
 
 
 def test_nenhuma_tool_aceita_apartamento(tools: list[FunctionTool]) -> None:
@@ -52,5 +83,6 @@ def test_so_cobranca_e_acesso_exigem_confirmacao(tools: list[FunctionTool]) -> N
 
 
 def test_toda_tool_tem_descricao_para_o_modelo(tools: list[FunctionTool]) -> None:
+    """O decorator que traduz erro de domínio não pode comer a docstring que o ADK declara."""
     for tool in tools:
         assert tool.description, tool.name

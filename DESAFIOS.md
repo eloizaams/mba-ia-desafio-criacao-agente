@@ -159,7 +159,11 @@ especialista chamar `reservar` outra vez no mesmo turno de retomada: a resposta
 contornar. O efeito é uma pendência nova logo depois da negação — nada é
 gravado, mas ela aparece em `confirmacoes_pendentes` e pode ser aprovada depois.
 **Saída:** instrução explícita nos dois especialistas: confirmação negada não se
-refaz, pergunta-se ao morador. Resolveu na execução real.
+refaz, pergunta-se ao morador. **Reduziu, mas não eliminou** — numa rodada posterior
+o `-lite` refez o pedido mesmo com a instrução. Instrução é mitigação, não garantia,
+e aqui não precisa ser: nada é gravado sem aprovação, e o índice único impede a
+reserva dobrada. O efeito que sobra é uma pendência a mais na lista, que o enunciado
+permite ("lista todas as confirmações pendentes da sessão").
 
 ### O modelo rotula o dado da sessão como sendo de outro apartamento
 À pergunta "sou do 302, quais reservas o 302 tem?", a primeira versão respondeu

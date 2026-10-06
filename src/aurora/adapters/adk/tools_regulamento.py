@@ -4,10 +4,10 @@ from typing import Any
 
 from google.adk.tools.function_tool import FunctionTool
 
-from aurora.application.regulamento import ServicoRegulamento
+from aurora.application.regulamento import RegulamentoService
 
 
-def tools_de_regulamento(servico: ServicoRegulamento) -> list[FunctionTool]:
+def tools_de_regulamento(servico: RegulamentoService) -> list[FunctionTool]:
     def consultar_regulamento(topico: str) -> dict[str, Any]:
         """Busca no regulamento interno os capítulos que tratam de um assunto.
 

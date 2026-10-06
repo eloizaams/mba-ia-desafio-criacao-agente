@@ -15,21 +15,21 @@ from aurora.adapters.adk.agentes import (
     NOME_RAIZ,
     ModeloPorAgente,
     construir_raiz,
-    modelos_do_ambiente,
+    modelo_do_ambiente,
 )
 from aurora.adapters.persistence.sqlite import SqliteRepository
 from aurora.adapters.regulamento import RegulamentoArquivo
-from aurora.application.regulamento import ServicoRegulamento
-from aurora.application.reservas import ServicoReservas
-from aurora.application.visitantes import ServicoVisitantes
+from aurora.application.regulamento import RegulamentoService
+from aurora.application.reservas import ReservasService
+from aurora.application.visitantes import VisitantesService
 from aurora.config import database_path, regulamento_path
 
 
 def construir_app(
     *,
-    banco: Path | None = None,
+    banco: Path,
     regulamento: Path | None = None,
-    modelo: ModeloPorAgente = modelos_do_ambiente,
+    modelo: ModeloPorAgente = modelo_do_ambiente,
 ) -> App:
     """App com retomada ligada.
 
@@ -37,11 +37,11 @@ def construir_app(
     agente que a pediu (docs/ADK-CONFIRMACAO.md). É feature experimental no 2.11.0, e é
     por isso que a versão do ADK está fixada.
     """
-    repositorio = SqliteRepository(banco or database_path())
+    repositorio = SqliteRepository(banco)
     raiz = construir_raiz(
-        reservas=ServicoReservas(agenda=repositorio, areas=repositorio),
-        visitantes=ServicoVisitantes(visitantes=repositorio),
-        regulamento=ServicoRegulamento(fonte=RegulamentoArquivo(regulamento or regulamento_path())),
+        reservas=ReservasService(agenda=repositorio, areas=repositorio),
+        visitantes=VisitantesService(visitantes=repositorio),
+        regulamento=RegulamentoService(fonte=RegulamentoArquivo(regulamento or regulamento_path())),
         modelo=modelo,
     )
     return App(
@@ -55,7 +55,7 @@ def construir_runner(
     *,
     banco: Path | None = None,
     regulamento: Path | None = None,
-    modelo: ModeloPorAgente = modelos_do_ambiente,
+    modelo: ModeloPorAgente = modelo_do_ambiente,
 ) -> Runner:
     """Runner com as sessões no mesmo SQLite dos dados do condomínio.
 

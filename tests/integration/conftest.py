@@ -1,4 +1,4 @@
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -13,10 +13,8 @@ from aurora.adapters.adk.agentes import (
 from aurora.adapters.adk.app import construir_runner
 from aurora.adapters.persistence.restore import restaurar
 from aurora.adapters.persistence.sqlite import SqliteRepository
+from tests.support.condominio import DADOS, REGULAMENTO, FabricaDeRunner
 from tests.support.scripted_llm import ScriptedLlm
-
-DADOS = Path(__file__).parents[2] / "dados"
-REGULAMENTO = DADOS / "regulamento.md"
 
 
 @pytest.fixture
@@ -41,11 +39,8 @@ def modelos() -> dict[str, ScriptedLlm]:
 
 
 @pytest.fixture
-def novo_runner(banco: Path, modelos: dict[str, ScriptedLlm]) -> Callable[[], Runner]:
-    """Fábrica, não instância: chamar de novo é o que simula a API reiniciada.
-
-    Nada sobrevive em memória entre as chamadas; só o SQLite atravessa.
-    """
+def novo_runner(banco: Path, modelos: dict[str, ScriptedLlm]) -> FabricaDeRunner:
+    """Nada sobrevive em memória entre as chamadas; só o SQLite atravessa."""
 
     def _novo() -> Runner:
         return construir_runner(

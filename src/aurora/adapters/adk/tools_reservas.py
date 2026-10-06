@@ -2,6 +2,7 @@
 
 Nenhuma recebe apartamento: ele vem de `tool_context.state` (Garantia 2). As
 tools são finas — estado, caso de uso, dicionário — e não decidem regra nenhuma.
+Erro de domínio vira resultado pelo decorator, nunca exceção para o `Runner`.
 """
 
 from typing import Any
@@ -10,12 +11,11 @@ from google.adk.tools.function_tool import FunctionTool
 from google.adk.tools.tool_context import ToolContext
 
 from aurora.adapters.adk.estado import apartamento_da_sessao
-from aurora.adapters.adk.resultados import erro_como_resultado
-from aurora.application.reservas import ServicoReservas
-from aurora.domain.erros import DominioError
+from aurora.adapters.adk.resultados import traduz_erro_de_dominio
+from aurora.application.reservas import ReservasService
 
 
-def tools_de_reservas(servico: ServicoReservas) -> list[FunctionTool]:
+def tools_de_reservas(servico: ReservasService) -> list[FunctionTool]:
     """Monta as tools em cima de um serviço já ligado ao banco."""
 
     def listar_areas() -> dict[str, Any]:
@@ -44,6 +44,7 @@ def tools_de_reservas(servico: ServicoReservas) -> list[FunctionTool]:
             ]
         }
 
+    @traduz_erro_de_dominio
     def verificar_disponibilidade(area: str, data: str) -> dict[str, Any]:
         """Diz se uma área está livre ou ocupada numa data.
 
@@ -53,10 +54,7 @@ def tools_de_reservas(servico: ServicoReservas) -> list[FunctionTool]:
             area: id da área, como em listar_areas.
             data: data no formato AAAA-MM-DD.
         """
-        try:
-            livre = servico.disponivel(area, data)
-        except DominioError as erro:
-            return erro_como_resultado(erro)
+        livre = servico.disponivel(area, data)
         return {
             "status": "ok",
             "area": area,
@@ -64,6 +62,7 @@ def tools_de_reservas(servico: ServicoReservas) -> list[FunctionTool]:
             "situacao": "livre" if livre else "ocupada",
         }
 
+    @traduz_erro_de_dominio
     def reservar(area: str, data: str, tool_context: ToolContext) -> dict[str, Any]:
         """Reserva uma área comum para o apartamento desta sessão.
 
@@ -73,18 +72,16 @@ def tools_de_reservas(servico: ServicoReservas) -> list[FunctionTool]:
             area: id da área, como em listar_areas.
             data: data no formato AAAA-MM-DD.
         """
-        try:
-            reserva = servico.reservar(apartamento_da_sessao(tool_context), area, data)
-        except DominioError as erro:
-            return erro_como_resultado(erro)
+        feita = servico.reservar(apartamento_da_sessao(tool_context), area, data)
         return {
             "status": "reservada",
-            "codigo": reserva.codigo,
-            "area": reserva.area,
-            "data": reserva.data.isoformat(),
-            "gera_cobranca": servico.gera_cobranca(reserva.area),
+            "codigo": feita.reserva.codigo,
+            "area": feita.reserva.area,
+            "data": feita.reserva.data.isoformat(),
+            "gera_cobranca": feita.gera_cobranca,
         }
 
+    @traduz_erro_de_dominio
     def cancelar_minha_reserva(area: str, data: str, tool_context: ToolContext) -> dict[str, Any]:
         """Cancela uma reserva do apartamento desta sessão, pela área e pela data.
 
@@ -94,10 +91,7 @@ def tools_de_reservas(servico: ServicoReservas) -> list[FunctionTool]:
             area: id da área, como em listar_areas.
             data: data no formato AAAA-MM-DD.
         """
-        try:
-            reserva = servico.cancelar(apartamento_da_sessao(tool_context), area, data)
-        except DominioError as erro:
-            return erro_como_resultado(erro)
+        reserva = servico.cancelar(apartamento_da_sessao(tool_context), area, data)
         return {
             "status": "cancelada",
             "codigo": reserva.codigo,

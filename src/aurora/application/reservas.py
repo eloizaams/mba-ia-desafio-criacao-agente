@@ -7,7 +7,7 @@ nunca deixar o chamador saber de reserva de outro apartamento.
 
 from dataclasses import dataclass
 
-from aurora.application.portas import AgendaRepository, AreaRepository
+from aurora.application.ports import AgendaRepository, AreaRepository
 from aurora.domain.area import Area
 from aurora.domain.datas import data_de_texto
 from aurora.domain.erros import AreaDesconhecida, ReservaNaoEncontrada
@@ -15,7 +15,19 @@ from aurora.domain.reserva import Reserva
 
 
 @dataclass(frozen=True)
-class ServicoReservas:
+class ReservaFeita:
+    """A reserva gravada e se ela gera cobrança.
+
+    Vão juntas porque a `Area` é lida uma vez só: quem grava já precisou dela para
+    validar, e quem responde ao morador precisa da taxa.
+    """
+
+    reserva: Reserva
+    gera_cobranca: bool
+
+
+@dataclass(frozen=True)
+class ReservasService:
     agenda: AgendaRepository
     areas: AreaRepository
 
@@ -23,7 +35,13 @@ class ServicoReservas:
         return self.areas.listar()
 
     def gera_cobranca(self, area_id: str) -> bool:
-        """Regra de negócio 2. Área desconhecida não cobra: a reserva vai falhar antes disso."""
+        """Regra de negócio 2, usada como porta da confirmação.
+
+        Área inexistente devolve False e segue sem confirmação **de propósito**: ela não
+        tem como gravar nada, porque `reservar` recusa com `AreaDesconhecida` antes de
+        qualquer escrita. Pedir confirmação de um pedido impossível só confundiria o
+        morador. Coberto por `test_area_inexistente_nao_pede_confirmacao_nem_grava`.
+        """
         area = self.areas.buscar(area_id)
         return area is not None and area.gera_cobranca
 
@@ -34,9 +52,11 @@ class ServicoReservas:
         """Só diz se a data está livre. Quem reservou não sai daqui (constituição 5)."""
         return not self.agenda.ocupada(self._area(area_id).id, data_de_texto(data))
 
-    def reservar(self, apartamento: str, area_id: str, data: str) -> Reserva:
+    def reservar(self, apartamento: str, area_id: str, data: str) -> ReservaFeita:
         """Grava a reserva. Levanta DataIndisponivel se outra reserva ativa vencer a corrida."""
-        return self.agenda.gravar_reserva(apartamento, self._area(area_id).id, data_de_texto(data))
+        area = self._area(area_id)
+        reserva = self.agenda.gravar_reserva(apartamento, area.id, data_de_texto(data))
+        return ReservaFeita(reserva=reserva, gera_cobranca=area.gera_cobranca)
 
     def cancelar(self, apartamento: str, area_id: str, data: str) -> Reserva:
         """Cancela por área e data, dentro das reservas do apartamento.

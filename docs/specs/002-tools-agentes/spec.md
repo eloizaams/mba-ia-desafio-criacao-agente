@@ -4,11 +4,11 @@ Fase 4 de [`docs/PLANO.md`](../../PLANO.md). Garantias e passos do avaliador cob
 
 ## Escopo
 
-1. Casos de uso em `application/`: reservas, visitantes, regulamento. É aqui que a validação de existência (área) e de formato (data) acontece, antes de qualquer gravação.
+1. Casos de uso em `application/`: `ReservasService`, `VisitantesService`, `RegulamentoService` (portas em `application/ports.py`). É aqui que a validação de existência (área) e de formato (data) acontece, antes de qualquer gravação.
 2. Divisão do regulamento em capítulos e seleção do capítulo pertinente, como regra de domínio (`domain/regulamento.py`), com adaptador de leitura do arquivo em `adapters/regulamento.py`.
 3. Tools ADK em `adapters/adk/`, finas: leem o apartamento da sessão, chamam um caso de uso, traduzem o resultado (ou o erro de domínio) em `dict` para o modelo.
 4. Topologia: agente principal `aurora` com `reservas` e `visitantes` como `sub_agents` e `regulamento` como `AgentTool`.
-5. Derivação das confirmações pendentes a partir dos eventos da sessão, e a mensagem que responde uma confirmação. É código de ADK, não de HTTP: a rota da Fase 5 só embrulha.
+5. Criação e leitura de sessão (`adapters/adk/sessoes.py`, onde o apartamento entra no `state`), derivação das confirmações pendentes a partir dos eventos e a mensagem que responde uma confirmação. É código de ADK, não de HTTP: as rotas da Fase 5 só embrulham.
 6. Testes com `ScriptedLlm` (sem `GOOGLE_API_KEY`), rodando o `Runner` de verdade com sessão em SQLite.
 
 Fora desta spec: rotas HTTP, serialização de eventos para JSON, 404/409 (Fase 5); revisão adversarial das garantias (Fase 6).
@@ -32,7 +32,7 @@ Todas sem parâmetro de apartamento. `tool_context.state["apartamento"]` é a ú
 |---|---|---|---|
 | `listar_areas` | — | id, nome, taxa, `gera_cobranca` de cada área | não |
 | `listar_minhas_reservas` | — | código, área, data das reservas ativas do apartamento da sessão | não |
-| `verificar_disponibilidade` | `area`, `data` | `"livre"` ou `"ocupada"`, nada mais (constituição 5) | não |
+| `verificar_disponibilidade` | `area`, `data` | `"livre"` ou `"ocupada"`, mais o eco da área e da data perguntadas. Nada sobre quem reservou (constituição 5) | não |
 | `reservar` | `area`, `data` | código, área, data e se gera cobrança | **se `taxa > 0`** |
 | `cancelar_minha_reserva` | `area`, `data` | código cancelado, ou "não encontrada" | não (regra de negócio 4) |
 
@@ -57,7 +57,9 @@ Todas sem parâmetro de apartamento. `tool_context.state["apartamento"]` é a ú
 - **`detalhes` da pendência são os argumentos originais da tool.** Como nenhuma tool recebe apartamento, os argumentos são exatamente o que o enunciado pede em `detalhes` (`{"area", "data"}` ou `{"nome", "data"}`). Não há filtro a aplicar, e por construção nada de outro apartamento aparece ali.
 - **Seleção de capítulo por termos, com o título pesando mais.** O peso do título (10) acima do corpo (1 por termo distinto) evita que uma palavra comum como "domingos", que aparece em vários capítulos, arraste a resposta para o capítulo errado. Devolve o melhor capítulo e, só em quase-empate (≥ 60% do melhor), um segundo — para pergunta que legitimamente cruza dois capítulos ("piscina e churrasqueira"). Nunca mais de dois.
 - **Tools síncronas.** O ADK 2.11.0 invoca tool síncrona dentro do loop de eventos (`_SYNC_CALLABLE_RUNNER` fica vazio). O efeito é serializar as gravações dentro do processo, o que não atrapalha a Garantia 5: a exclusividade é da constraint, e o `busy_timeout` cuida de escritas de outros processos ou threads. Manter síncrono evita embrulhar o repositório inteiro em `asyncio.to_thread` sem necessidade.
-- **Erro de domínio é resultado, não exceção.** Toda tool devolve `{"status": ...}`. `DataIndisponivel` → `data_indisponivel`; `ReservaNaoEncontrada` → `nao_encontrada`; `AreaDesconhecida`/`DadoInvalido` → `invalido`. Nenhuma exceção de domínio sobe para o `Runner`, para que a Fase 5 nunca precise traduzir 500.
+- **Erro de domínio é resultado, não exceção.** Toda tool devolve `{"status": ..., "motivo": ...}`, pelo decorator `traduz_erro_de_dominio`. `DataIndisponivel` → `data_indisponivel`; `ReservaNaoEncontrada` → `nao_encontrada`; `AreaDesconhecida` → `area_desconhecida`; `DadoInvalido` → `invalido`; erro de domínio novo cai em `invalido`. Cada status tem uma linha na instrução do especialista, para o modelo saber o que dizer. Nenhuma exceção de domínio sobe para o `Runner`, e erro que **não** é de domínio continua subindo: defeito de programação não vira resultado para o modelo.
+- **A porta da confirmação responde "não cobra" para área inexistente.** `gera_cobranca` devolve `False` quando a área não existe, então um pedido com área inventada não gera pendência. É deliberado: `reservar` recusa com `area_desconhecida` antes de qualquer escrita, então não há ação a confirmar — confirmar um pedido impossível só confundiria o morador. Coberto por `test_area_inexistente_nao_pede_confirmacao_nem_grava`.
+- **Nomes.** Classes de serviço e o módulo de portas em inglês (`ReservasService`, `ports.py`), como manda a constituição ("termos técnicos em inglês"); o que nomeia conceito do enunciado continua em português (`reservas`, `visitantes`, `confirmacoes`, `sessoes`).
 - **Uma instância de `ScriptedLlm` por agente nos testes.** Compartilhar a instância fez o especialista tentar transferir para si mesmo na Fase 2 (`DESAFIOS.md`). O papel é campo do modelo.
 
 ## Critérios de aceite
@@ -69,5 +71,6 @@ Todas sem parâmetro de apartamento. `tool_context.state["apartamento"]` é a ú
 - Numa sessão do 101, pedir dados ou cancelamento do 302 não altera nada e não leva `RSV-4821` nem `Marina Duarte` para os eventos (passos 3 e 4).
 - Reservar data já ocupada devolve `data_indisponivel`, sem dizer de quem é a reserva (passo 10).
 - A sessão do pai não contém nenhum evento autorado por `regulamento`, e a resposta sobre a piscina aos domingos traz o horário de fechamento (passo 12).
-- Nenhuma função de tool tem parâmetro de apartamento (passo 15), verificado por teste.
+- Nenhuma função de tool tem parâmetro de apartamento (passo 15), verificado por um teste que caminha pela topologia de verdade (root, `sub_agents` e o agente dentro do `AgentTool`), não por uma lista remontada à mão.
+- Tópico sem capítulo devolve os títulos e o agente acerta na segunda consulta, sem nunca receber o documento inteiro.
 - `ruff`, `mypy` strict e `pytest` verdes sem `GOOGLE_API_KEY`.

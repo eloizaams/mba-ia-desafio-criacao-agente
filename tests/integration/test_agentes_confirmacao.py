@@ -4,24 +4,19 @@ Roda o Runner de verdade, com sessão no SQLite e sem chave de API. O que o mode
 "decide" vem do roteiro; o que é permitido vem do código.
 """
 
-from collections.abc import Callable
 from datetime import date
 
 import pytest
-from google.adk.runners import Runner
 
 from aurora.adapters.adk.agentes import NOME_RAIZ, NOME_RESERVAS, NOME_VISITANTES
 from aurora.adapters.adk.sessoes import criar_sessao
 from aurora.adapters.persistence.sqlite import SqliteRepository
+from tests.support.condominio import QUADRA, RESERVA_DO_101, SALAO, FabricaDeRunner
 from tests.support.conversa import enviar, eventos_em_texto, pendencias, responder_confirmacao
 from tests.support.scripted_llm import ScriptedLlm
 
-SALAO = "salao-de-festas"
-QUADRA = "quadra"
 DATA_SALAO = "2030-04-20"
 DATA_QUADRA = "2030-04-06"
-
-FabricaDeRunner = Callable[[], Runner]
 
 
 def _roteiro_de_reserva(modelos: dict[str, ScriptedLlm], area: str, data: str) -> None:
@@ -202,3 +197,23 @@ async def test_repetir_a_resposta_da_confirmacao_nao_executa_de_novo(
     await responder_confirmacao(runner, sessao.id, pendente.id, confirmado=True)
 
     assert len(_reservas(repo, SALAO, DATA_SALAO)) == 1
+
+
+async def test_area_inexistente_nao_pede_confirmacao_nem_grava(
+    novo_runner: FabricaDeRunner, modelos: dict[str, ScriptedLlm], repo: SqliteRepository
+) -> None:
+    """A porta da confirmação responde "não cobra" para área que não existe, de propósito.
+
+    Área inventada não tem como gravar nada: `reservar` recusa com `area_desconhecida`
+    antes de qualquer escrita. Pedir confirmação de um pedido impossível só confundiria
+    o morador — e aprová-la não criaria reserva nenhuma.
+    """
+    _roteiro_de_reserva(modelos, "piscina-de-bolinhas", DATA_SALAO)
+    runner = novo_runner()
+    sessao = await criar_sessao(runner, "101")
+
+    await enviar(runner, sessao.id, "Reserve a piscina de bolinhas para 2030-04-20.")
+
+    assert await pendencias(runner, sessao.id) == []
+    assert "area_desconhecida" in await eventos_em_texto(runner, sessao.id)
+    assert [r.codigo for r in repo.reservas_ativas_do_apartamento("101")] == [RESERVA_DO_101]

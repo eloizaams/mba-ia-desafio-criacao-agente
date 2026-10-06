@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from aurora.application.portas import RegulamentoRepository
+from aurora.application.ports import RegulamentoRepository
 from aurora.domain.regulamento import Capitulo, capitulos_relevantes
 
 
@@ -15,7 +15,7 @@ class ConsultaRegulamento:
 
 
 @dataclass(frozen=True)
-class ServicoRegulamento:
+class RegulamentoService:
     fonte: RegulamentoRepository
 
     def consultar(self, topico: str) -> ConsultaRegulamento:
