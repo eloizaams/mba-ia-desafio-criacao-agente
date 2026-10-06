@@ -9,11 +9,34 @@ from aurora.config import caminho_banco
 
 DADOS_PADRAO = Path("dados")
 
+# Áreas e apartamentos são upsert: reservas canceladas os referenciam por FK, então não podem sumir.
+_UPSERT_AREA = (
+    "INSERT INTO areas (id, nome, taxa) VALUES (:id, :nome, :taxa) "
+    "ON CONFLICT(id) DO UPDATE SET nome = excluded.nome, taxa = excluded.taxa"
+)
+_UPSERT_APARTAMENTO = (
+    "INSERT INTO apartamentos (numero, morador) VALUES (:numero, :morador) "
+    "ON CONFLICT(numero) DO UPDATE SET morador = excluded.morador"
+)
+# Reserva do seed cancelada volta a ativa com o mesmo código: é estado inicial, não reserva nova.
+_UPSERT_RESERVA = (
+    "INSERT INTO reservas (codigo, apartamento, area, data, status) "
+    "VALUES (:codigo, :apartamento, :area, :data, 'ativa') "
+    "ON CONFLICT(codigo) DO UPDATE SET apartamento = excluded.apartamento, "
+    "area = excluded.area, data = excluded.data, status = 'ativa'"
+)
+_INSERT_VISITANTE = (
+    "INSERT INTO visitantes (apartamento, nome, data) VALUES (:apartamento, :nome, :data)"
+)
+
 
 def restaurar(banco: Path, dados: Path) -> None:
-    """Recria o estado do condomínio a partir de dados/*.json, numa única transação.
+    """Volta o condomínio ao estado de dados/*.json. Não toca nas sessões ADK nem em dados/.
 
-    Apaga e recarrega as tabelas de domínio. Não toca nas sessões ADK e não altera dados/.
+    - Reservas ativas da conversa são removidas e as do seed são recarregadas.
+    - Reservas canceladas fora do seed ficam como histórico: o código nunca é reaproveitado.
+    - Visitantes são recarregados do zero.
+    O schema é criado antes da transação, porque executescript fecha qualquer transação aberta.
     """
     apartamentos = _ler_json(dados / "apartamentos.json")
     areas = _ler_json(dados / "areas.json")
@@ -24,28 +47,14 @@ def restaurar(banco: Path, dados: Path) -> None:
     conexao = sqlite3.connect(banco)
     try:
         conexao.execute("PRAGMA foreign_keys = ON")
+        criar_schema(conexao)
         with conexao:
-            criar_schema(conexao)
-            for tabela in ("reservas", "visitantes", "apartamentos", "areas"):
-                conexao.execute(f"DELETE FROM {tabela}")
-            conexao.executemany(
-                "INSERT INTO areas (id, nome, taxa) VALUES (:id, :nome, :taxa)",
-                [{**a, "taxa": str(a["taxa"])} for a in areas],
-            )
-            conexao.executemany(
-                "INSERT INTO apartamentos (numero, morador) VALUES (:numero, :morador)",
-                apartamentos,
-            )
-            conexao.executemany(
-                "INSERT INTO reservas (codigo, apartamento, area, data, status) "
-                "VALUES (:codigo, :apartamento, :area, :data, 'ativa')",
-                reservas,
-            )
-            conexao.executemany(
-                "INSERT INTO visitantes (apartamento, nome, data) "
-                "VALUES (:apartamento, :nome, :data)",
-                visitantes,
-            )
+            conexao.executemany(_UPSERT_AREA, [{**a, "taxa": str(a["taxa"])} for a in areas])
+            conexao.executemany(_UPSERT_APARTAMENTO, apartamentos)
+            conexao.execute("DELETE FROM reservas WHERE status = 'ativa'")
+            conexao.executemany(_UPSERT_RESERVA, reservas)
+            conexao.execute("DELETE FROM visitantes")
+            conexao.executemany(_INSERT_VISITANTE, visitantes)
         conexao.execute("PRAGMA journal_mode = WAL")
     finally:
         conexao.close()

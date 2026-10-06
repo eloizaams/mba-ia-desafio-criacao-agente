@@ -25,7 +25,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_reserva_ativa_area_data
     ON reservas (area, data) WHERE status = 'ativa';
 
 CREATE TABLE IF NOT EXISTS visitantes (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    -- Sem AUTOINCREMENT: o restore apaga e recarrega, e os ids voltam a começar do 1.
+    id           INTEGER PRIMARY KEY,
     apartamento  TEXT NOT NULL REFERENCES apartamentos(numero),
     nome         TEXT NOT NULL,
     data         TEXT NOT NULL

@@ -108,12 +108,14 @@ class RepositorioSqlite:
         return _reserva_da_linha(linhas[0])
 
     def autorizar(self, apartamento: str, nome: str, data: date) -> Visitante:
+        # Valida antes de gravar: o domínio recusa nome vazio.
+        visitante = Visitante(apartamento=apartamento, nome=nome, data=data)
         with self._conexao() as conexao:
             conexao.execute(
                 "INSERT INTO visitantes (apartamento, nome, data) VALUES (?, ?, ?)",
                 (apartamento, nome, data.isoformat()),
             )
-        return Visitante(apartamento=apartamento, nome=nome, data=data)
+        return visitante
 
     def do_apartamento(self, apartamento: str) -> list[Visitante]:
         with self._conexao() as conexao:
