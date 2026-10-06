@@ -72,3 +72,10 @@ depleted`. O erro aparece na primeira chamada ao modelo, então o spike falha
 no meio do `abrir` e pode deixar uma sessão pela metade no banco.
 **Saída:** conferir o crédito em `ai.studio/projects` antes de rodar os testes
 reais. Para descartar a sessão pela metade, apague `spike/spike_sessoes.db`.
+
+### `503 UNAVAILABLE` ("high demand") no modelo do topo da lista
+Depois de liberar crédito, `gemini-3.8-flash` respondeu `503 UNAVAILABLE` em
+todas as tentativas de uma janela de vários minutos. A mesma topologia rodou
+inteira com `gemini-3.5-flash` (T3 a T6). Erro transitório do lado do Google,
+não do código. Ao rodar testes reais, valer-se de um segundo modelo estável
+como reserva, parametrizado por `AURORA_MODELO_*`, sem editar o código.
