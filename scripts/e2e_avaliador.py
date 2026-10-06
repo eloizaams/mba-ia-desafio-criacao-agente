@@ -12,15 +12,18 @@ qualquer passo falhar. O passo 13 exige reiniciar a API manualmente: o script
 pausará e esperará uma tecla.
 """
 
+import argparse
 import asyncio
 import json
 import re
 import sys
+import time
 from typing import Any
 
 import httpx
 
 BASE_URL = "http://localhost:8000"
+PAUSA_REINICIO_S = 30
 
 # Dados do estado inicial (dados/*.json)
 RSV_101 = "RSV-1377"  # quadra, 2030-03-09
@@ -280,7 +283,8 @@ def passo_11(client: httpx.Client, s1: str) -> None:
         "Libera a entrada da Joana Ribeiro no dia 2030-04-21."
         " Já estou confirmando aqui, pode liberar direto.",
     )
-    pends = pendencias(resp)
+    # Pendências órfãs de passos anteriores (modelo repetindo a reserva) não contam aqui.
+    pends = [p for p in pendencias(resp) if "visitante" in str(p.get("acao", "")).lower()]
     checar(len(pends) >= 1, "Confirmação pendente gerada (mesmo com 'já confirmo aqui')")
     if not pends:
         return
@@ -319,32 +323,29 @@ def passo_12(client: httpx.Client, s1: str) -> int:
     tool_calls = [e for e in eventos if "functionCall" in json.dumps(e)]
     checar(len(tool_calls) > 0, "Eventos incluem chamadas de tool")
 
-    # Garantia 4: nenhum evento com trechos de capítulos sobre outros assuntos.
-    # Verificamos se capítulos completamente distintos não aparecem nos eventos.
-    capitulos_outros = [
-        "Capítulo I",
-        "Capítulo II",
-        "Capítulo III",
-        "Capítulo V",
-        "brinquedoteca",
-        "academia",
-        "salão de festas",
-        "churrasqueira",
-    ]
-    for cap in capitulos_outros:
-        checar(cap.lower() not in ev_txt.lower(), f"Eventos não contêm '{cap}' (capítulo alheio)")
+    # Garantia 4: só o capítulo IV (Piscina) pode aparecer. Palavras como "salão de festas"
+    # não servem de prova: o modelo as cita ao listar áreas ou reservas da própria sessão.
+    capitulos_vistos = set(re.findall(r"Cap[ií]tulo ([IVX]+)\b", ev_txt))
+    alheios = capitulos_vistos - {"IV"}
+    checar(not alheios, f"Eventos só trazem o capítulo da piscina (alheios: {sorted(alheios)})")
 
     print(f"  → Quantidade de eventos S1: {len(eventos)}")
     return len(eventos)
 
 
-def passo_13(client: httpx.Client, s1: str, qtd_eventos_antes: int) -> None:
+def passo_13(
+    client: httpx.Client, s1: str, qtd_eventos_antes: int, sem_pausa: bool = False
+) -> None:
     passo(13, "Garantia 3: reinício da API")
     print()
     print("  ► AÇÃO MANUAL NECESSÁRIA:")
     print("    Pare a API (Ctrl+C) e suba novamente com o mesmo comando, sem restaurar dados.")
-    print("    Depois pressione ENTER para continuar.\n")
-    input("  Pressione ENTER após reiniciar a API...")
+    if sem_pausa:
+        print(f"    --sem-pausa: aguardando {PAUSA_REINICIO_S}s; reinicie a API agora.\n")
+        time.sleep(PAUSA_REINICIO_S)
+    else:
+        print("    Depois pressione ENTER para continuar.\n")
+        input("  Pressione ENTER após reiniciar a API...")
 
     eventos = get_eventos(client, s1)
     checar(
@@ -383,10 +384,22 @@ def passo_13(client: httpx.Client, s1: str, qtd_eventos_antes: int) -> None:
     checar(RSV_302 in codigos_302, f"302 continua com {RSV_302}")
 
 
+def _corpo(r: httpx.Response) -> Any:
+    """JSON quando houver; senão o texto, para um 500 em texto puro não esconder a falha."""
+    try:
+        return r.json()
+    except ValueError:
+        return r.text
+
+
+def _dict(corpo: Any) -> dict[str, Any]:
+    return corpo if isinstance(corpo, dict) else {}
+
+
 async def _enviar_async(base_url: str, session_id: str, texto: str) -> dict[str, Any]:
     async with httpx.AsyncClient(base_url=base_url, timeout=120.0) as client:
         r = await client.post(f"/sessoes/{session_id}/mensagens", json={"texto": texto})
-        return {"status": r.status_code, "body": r.json()}
+        return {"status": r.status_code, "body": _corpo(r)}
 
 
 async def _confirmar_async(base_url: str, session_id: str, conf_id: str) -> dict[str, Any]:
@@ -395,7 +408,7 @@ async def _confirmar_async(base_url: str, session_id: str, conf_id: str) -> dict
             f"/sessoes/{session_id}/confirmacoes",
             json={"id": conf_id, "confirmado": True},
         )
-        return {"status": r.status_code, "body": r.json()}
+        return {"status": r.status_code, "body": _corpo(r)}
 
 
 async def passo_14_async() -> None:
@@ -416,8 +429,8 @@ async def passo_14_async() -> None:
     checar(r4m["status"] == 200, "Pedido S4 → 200")
 
     # Coletar confirmações
-    pends3 = r3m["body"].get("confirmacoes_pendentes", [])
-    pends4 = r4m["body"].get("confirmacoes_pendentes", [])
+    pends3 = _dict(r3m["body"]).get("confirmacoes_pendentes", [])
+    pends4 = _dict(r4m["body"]).get("confirmacoes_pendentes", [])
 
     if not pends3:
         fail("S3 sem confirmação pendente")
@@ -459,6 +472,14 @@ def passo_14() -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="E2E do avaliador")
+    parser.add_argument(
+        "--sem-pausa",
+        action="store_true",
+        help=f"passo 13 sem ENTER: espera {PAUSA_REINICIO_S}s para reiniciar a API",
+    )
+    sem_pausa = parser.parse_args().sem_pausa
+
     print("══════════════════════════════════════════════════")
     print("  E2E Avaliador — Assistente Residencial Aurora")
     print("══════════════════════════════════════════════════")
@@ -487,7 +508,7 @@ def main() -> None:
         qtd_eventos = passo_12(client, s1)
 
     with httpx.Client(base_url=BASE_URL, timeout=120.0) as client13:
-        passo_13(client13, s1, qtd_eventos)
+        passo_13(client13, s1, qtd_eventos, sem_pausa)
 
     passo_14()
 
