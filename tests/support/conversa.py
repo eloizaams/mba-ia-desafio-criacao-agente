@@ -1,34 +1,29 @@
 """Atalhos para conversar com o Runner nos testes.
 
-A API da Fase 5 vai fazer os mesmos quatro movimentos: criar sessão, enviar
-mensagem, derivar pendências e responder confirmação.
+Usa o código de produção de `adapters/adk/conversa.py` — sem duplicar a lógica.
 """
 
 import re
 
 from google.adk.runners import Runner
-from google.genai import types
 
-from aurora.adapters.adk.confirmacoes import (
-    PendenciaConfirmacao,
-    pendentes,
-    resposta_de_confirmacao,
-)
-from aurora.adapters.adk.sessoes import USUARIO, buscar_sessao
+from aurora.adapters.adk.confirmacoes import PendenciaConfirmacao, pendentes
+from aurora.adapters.adk.conversa import confirmar, enviar
+from aurora.adapters.adk.sessoes import buscar_sessao
 
-
-async def enviar(runner: Runner, sessao_id: str, texto: str) -> None:
-    mensagem = types.Content(role="user", parts=[types.Part(text=texto)])
-    async for _ in runner.run_async(user_id=USUARIO, session_id=sessao_id, new_message=mensagem):
-        pass
+__all__ = [
+    "contem_numero_isolado",
+    "enviar",
+    "eventos_em_texto",
+    "pendencias",
+    "responder_confirmacao",
+]
 
 
 async def responder_confirmacao(
     runner: Runner, sessao_id: str, id_da_pendencia: str, confirmado: bool
 ) -> None:
-    mensagem = resposta_de_confirmacao(id_da_pendencia, confirmado)
-    async for _ in runner.run_async(user_id=USUARIO, session_id=sessao_id, new_message=mensagem):
-        pass
+    await confirmar(runner, sessao_id, id_da_pendencia, confirmado)
 
 
 async def pendencias(runner: Runner, sessao_id: str) -> list[PendenciaConfirmacao]:

@@ -29,7 +29,15 @@ uv run pre-commit run --all-files          # hooks fora do commit
 
 ## Estado atual
 
-Fase 4 concluída. `domain/`, `application/` e `adapters/` (`persistence/`, `regulamento.py`, `adk/`) existem e são cobertos por testes que rodam sem chave de API. Falta `adapters/api/` (Fase 5): as rotas FastAPI por cima de `adapters/adk/app.py`, `sessoes.py` e `confirmacoes.py`, que já estão prontos.
+Fase 5 concluída. `adapters/api/` implementado: `schemas.py`, `app.py` (`criar_api`), `main.py` (`aurora-api`). `adapters/adk/conversa.py` e `eventos.py` criados; `tests/support/conversa.py` usa o código de produção. `ApartamentoRepository.existe` adicionado a `ports.py` e `SqliteRepository`. `aurora-restore --sessoes` implementado. 108 testes passam sem chave de API. Smoke com Gemini real pendente (ver `tasks.md`). Próxima: Fase 6 — concorrência e hardening.
+
+## Comandos extras
+
+```bash
+uv run aurora-restore                      # restaura dados iniciais
+uv run aurora-restore --sessoes            # restaura dados + apaga sessões ADK
+uv run aurora-api                          # sobe API em 127.0.0.1:8000 (lê .env)
+```
 
 ## Arquitetura
 
