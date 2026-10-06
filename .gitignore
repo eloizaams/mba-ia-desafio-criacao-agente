@@ -6,5 +6,3 @@ __pycache__/
 .mypy_cache/
 .pytest_cache/
 
-# Artefatos do spike (Fase 2, descartável)
-spike/*.log
