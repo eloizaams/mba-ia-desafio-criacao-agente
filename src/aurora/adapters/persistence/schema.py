@@ -34,5 +34,5 @@ CREATE TABLE IF NOT EXISTS visitantes (
 """
 
 
-def criar_schema(conexao: sqlite3.Connection) -> None:
-    conexao.executescript(DDL)
+def create_schema(connection: sqlite3.Connection) -> None:
+    connection.executescript(DDL)

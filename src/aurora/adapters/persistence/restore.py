@@ -1,11 +1,12 @@
 import argparse
 import json
-import sqlite3
 from pathlib import Path
 from typing import Any
 
-from aurora.adapters.persistence.schema import criar_schema
-from aurora.config import caminho_banco
+from aurora.adapters.persistence.connection import open_connection
+from aurora.adapters.persistence.schema import create_schema
+from aurora.config import database_path
+from aurora.domain.reserva import StatusReserva
 
 DADOS_PADRAO = Path("dados")
 
@@ -21,16 +22,16 @@ _UPSERT_APARTAMENTO = (
 # Reserva do seed cancelada volta a ativa com o mesmo código: é estado inicial, não reserva nova.
 _UPSERT_RESERVA = (
     "INSERT INTO reservas (codigo, apartamento, area, data, status) "
-    "VALUES (:codigo, :apartamento, :area, :data, 'ativa') "
+    "VALUES (:codigo, :apartamento, :area, :data, :status) "
     "ON CONFLICT(codigo) DO UPDATE SET apartamento = excluded.apartamento, "
-    "area = excluded.area, data = excluded.data, status = 'ativa'"
+    "area = excluded.area, data = excluded.data, status = excluded.status"
 )
 _INSERT_VISITANTE = (
     "INSERT INTO visitantes (apartamento, nome, data) VALUES (:apartamento, :nome, :data)"
 )
 
 
-def restaurar(banco: Path, dados: Path) -> None:
+def restaurar(database: Path, dados: Path) -> None:
     """Volta o condomínio ao estado de dados/*.json. Não toca nas sessões ADK nem em dados/.
 
     - Reservas ativas da conversa são removidas e as do seed são recarregadas.
@@ -38,32 +39,32 @@ def restaurar(banco: Path, dados: Path) -> None:
     - Visitantes são recarregados do zero.
     O schema é criado antes da transação, porque executescript fecha qualquer transação aberta.
     """
-    apartamentos = _ler_json(dados / "apartamentos.json")
-    areas = _ler_json(dados / "areas.json")
-    reservas = _ler_json(dados / "reservas.json")
-    visitantes = _ler_json(dados / "visitantes.json")
+    apartamentos = _read_json(dados / "apartamentos.json")
+    areas = _read_json(dados / "areas.json")
+    reservas = _read_json(dados / "reservas.json")
+    visitantes = _read_json(dados / "visitantes.json")
 
-    banco.parent.mkdir(parents=True, exist_ok=True)
-    conexao = sqlite3.connect(banco)
+    database.parent.mkdir(parents=True, exist_ok=True)
+    connection = open_connection(database)
     try:
-        conexao.execute("PRAGMA foreign_keys = ON")
-        criar_schema(conexao)
-        with conexao:
-            conexao.executemany(_UPSERT_AREA, [{**a, "taxa": str(a["taxa"])} for a in areas])
-            conexao.executemany(_UPSERT_APARTAMENTO, apartamentos)
-            conexao.execute("DELETE FROM reservas WHERE status = 'ativa'")
-            conexao.executemany(_UPSERT_RESERVA, reservas)
-            conexao.execute("DELETE FROM visitantes")
-            conexao.executemany(_INSERT_VISITANTE, visitantes)
-        conexao.execute("PRAGMA journal_mode = WAL")
+        create_schema(connection)
+        with connection:
+            connection.executemany(_UPSERT_AREA, [{**a, "taxa": str(a["taxa"])} for a in areas])
+            connection.executemany(_UPSERT_APARTAMENTO, apartamentos)
+            connection.execute("DELETE FROM reservas WHERE status = ?", (StatusReserva.ATIVA,))
+            connection.executemany(
+                _UPSERT_RESERVA, [{**r, "status": StatusReserva.ATIVA} for r in reservas]
+            )
+            connection.execute("DELETE FROM visitantes")
+            connection.executemany(_INSERT_VISITANTE, visitantes)
     finally:
-        conexao.close()
+        connection.close()
 
 
-def _ler_json(caminho: Path) -> list[dict[str, Any]]:
-    with caminho.open(encoding="utf-8") as arquivo:
-        conteudo: list[dict[str, Any]] = json.load(arquivo)
-    return conteudo
+def _read_json(path: Path) -> list[dict[str, Any]]:
+    with path.open(encoding="utf-8") as file:
+        content: list[dict[str, Any]] = json.load(file)
+    return content
 
 
 def main() -> None:
@@ -74,9 +75,9 @@ def main() -> None:
     parser.add_argument("--dados", type=Path, default=DADOS_PADRAO, help="pasta com os JSON")
     parser.add_argument("--banco", type=Path, default=None, help="caminho do SQLite")
     args = parser.parse_args()
-    banco: Path = args.banco or caminho_banco()
-    restaurar(banco, args.dados)
-    print(f"Dados restaurados em {banco}")
+    database: Path = args.banco or database_path()
+    restaurar(database, args.dados)
+    print(f"Dados restaurados em {database}")
 
 
 if __name__ == "__main__":

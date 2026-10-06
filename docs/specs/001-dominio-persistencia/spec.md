@@ -26,8 +26,11 @@ Fora desta spec: tools, agentes, casos de uso que chamam o modelo (Fase 4), API 
 
 - **Dinheiro:** `Decimal`, lido de `taxa` via `str`. Evita erro de ponto flutuante em comparação com zero.
 - **Cancelamento:** `status='cancelada'`, nunca `DELETE`. Mantém o código reservado.
+- **Colisão de código esgotada:** após 5 tentativas, `gravar_reserva` levanta `RuntimeError`. Não é `DominioError`, porque não é regra de negócio, e a chance é desprezível. Antes da Fase 5 ele precisa virar erro controlado; não pode sair como 500 cru (`PLANO.md`, Fase 5).
 - **Erro de constraint:** o adaptador distingue os dois `UNIQUE` pela mensagem do SQLite. Índice da agenda vira `DataIndisponivel` (domínio). Colisão de código gera novo código e tenta de novo, com limite.
 - **Restore e histórico:** o restore apaga só as reservas ativas e recarrega as do seed. Reservas canceladas fora do seed ficam como histórico, para que o código nunca seja reaproveitado (regra 5). Reserva do seed que foi cancelada volta a ativa com o mesmo código, porque é estado inicial, não reserva nova. Áreas e apartamentos são upsert, porque reservas canceladas os referenciam por FK. Esse desvio do enunciado ("volta ao estado desses arquivos") é decisão registrada aqui: as tabelas de reservas não ficam idênticas aos JSON depois de canceladas.
+  Consequência: a regra 5 cobre só as canceladas. Códigos de reservas ativas que o restore remove (criadas na conversa) podem voltar a ser gerados. Aceito como efeito de reset.
+  Para o README (Fase 7): repetir este desvio junto da seção de Garantias, porque o enunciado exige a explicação.
 - **Acesso a dados:** `sqlite3` da biblioteca padrão, conexão curta por operação, `busy_timeout` para que escritas concorrentes aguardem em vez de falhar, WAL para leitura concorrente.
 
 ## Critérios de aceite
