@@ -147,7 +147,13 @@ Catálogo da Gemini API em outubro de 2026:
 
 Escolha para Aurora: `gemini-3.5-flash` nos dois papéis (roteador e
 especialistas) — estável, passou nos testes reais com tool calling e
-confirmação. `AURORA_MODELO_ESPECIALISTA` pode virar `gemini-3.5-flash-lite` se
+confirmação.
+
+**Revisão na Fase 4 (2026-10-06):** nessa janela quem deu `503` foi o
+`gemini-3.5-flash`, e `gemini-3.5-flash-lite` rodou o fluxo do avaliador inteiro,
+com transferência entre agentes, confirmação, retomada e `AgentTool`. A
+capacidade oscila por modelo e por horário; o que não oscila é o código. Ver
+`DESAFIOS.md`. `AURORA_MODELO_ESPECIALISTA` pode virar `gemini-3.5-flash-lite` se
 o custo pesar; os nomes já estão parametrizados no `.env.example`. Se o 503
 voltar, trocar o modelo é só mudança de configuração.
 

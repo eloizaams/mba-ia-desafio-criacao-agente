@@ -62,8 +62,8 @@ Os seis pontos foram validados por execução no spike (tag `spike-fase-2`):
 Saídas: [`docs/ADK-CONFIRMACAO.md`](ADK-CONFIRMACAO.md) (padrão comprovado),
 [`DESAFIOS.md`](../DESAFIOS.md) (frições). O código do spike saiu da branch: tinha função de prova, não de produto; a tag preserva o histórico.
 
-Pendente de chave: um *smoke test* com Gemini real, para confirmar que o modelo
-de verdade produz o mesmo fluxo de eventos. A mecânica já está provada.
+O *smoke test* com Gemini real foi feito na Fase 4 (chave e crédito disponíveis):
+o fluxo do avaliador rodou inteiro com `gemini-3.5-flash-lite`. Resultado na Fase 4.
 
 ### Fase 3 — Domínio + persistência
 - Tabelas: `areas`, `apartamentos`, `reservas(codigo UNIQUE, apartamento, area, data, status)`, índice único parcial `(area, data) WHERE status='ativa'`; `visitantes`.
@@ -79,6 +79,8 @@ de verdade produz o mesmo fluxo de eventos. A mecânica já está provada.
 - Regulamento: `consultar_regulamento(topico)` → no máximo dois capítulos, escolhidos por termos com o título pesando mais; agente `regulamento` como `AgentTool`.
 - Root: roteia, sem regulamento nas instruções.
 - Já nesta fase, porque é código de ADK e não de HTTP: `confirmacoes.py` (pendências derivadas dos eventos e a mensagem de retomada), `sessoes.py` e `app.py` (`App` + `Runner`). A Fase 5 embrulha isso em rotas.
+
+**Smoke test com Gemini real (2026-10-06, `gemini-3.5-flash-lite` nos dois papéis).** Rodou passos 3, 4, 5, 6, 7, 8, 11 e 12 do avaliador numa sessão só: quadra sem pendência, salão com pendência negada (nada gravado) e depois aprovada (uma reserva), visitante pendente mesmo com "já estou confirmando aqui", cancelamento sem pendência, e a piscina respondida com "das 9h às 20h, Artigo 22, inciso II". Nenhum `RSV-4821`, nenhum `Marina Duarte` e nenhum evento autorado por `regulamento` na sessão. Duas correções saíram daí, as duas de instrução: o modelo refazia o pedido depois de uma negação, e rotulava o dado da sessão como sendo do 302 (`DESAFIOS.md`). `gemini-3.5-flash` deu `503` de alta demanda nessa janela.
 
 ### Fase 5 — API
 - `POST /sessoes` (201), `POST /sessoes/{id}/mensagens`, `POST /sessoes/{id}/confirmacoes` (409 se id não pendente), `GET /sessoes/{id}/eventos`, `GET /apartamentos/{n}/reservas|visitantes`. 404 para sessão inexistente.

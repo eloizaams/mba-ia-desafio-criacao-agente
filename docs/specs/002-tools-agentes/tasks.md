@@ -30,3 +30,10 @@ mesmo id não reexecuta a tool, aviso de `context_cache_config`, `__init__.py` e
 
 Adiado para a Fase 5, de propósito: rotas HTTP, serialização dos eventos, 404/409,
 e o `--sessoes` do `aurora-restore`.
+
+## Smoke test com Gemini real (2026-10-06)
+
+- [x] Fluxo do avaliador (passos 3, 4, 5, 6, 7, 8, 11, 12) numa sessão só, com `gemini-3.5-flash-lite`
+- [x] Correção de instrução: confirmação negada não se refaz (o modelo chamava `reservar` de novo)
+- [x] Correção de instrução: resultado da tool é do apartamento da sessão e não pode ser apresentado como de outro
+- [x] 70 eventos, sem `RSV-4821`, sem `Marina Duarte`, sem evento autorado por `regulamento`

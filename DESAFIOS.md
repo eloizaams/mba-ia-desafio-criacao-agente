@@ -120,9 +120,15 @@ expressão para uma variável antes. Ordem certa: `ruff format` **depois**
 
 ## Ambiente de testes com Gemini
 
+### Chave e crédito: resolvidos
+A `GOOGLE_API_KEY` está no `.env` e o crédito do AI Studio foi pago (2026-10-06).
+Teste real **não** é bloqueio; o que vem abaixo é história de como falhou antes,
+para reconhecer o sintoma. Como o ADK, usado como biblioteca, não lê `.env`,
+carregue com `set -a; source .env; set +a` antes de rodar.
+
 ### Chave válida, mas sem crédito: `402 RESOURCE_EXHAUSTED`
 A chave autentica e a requisição chega ao modelo, mas o projeto do AI Studio
-está sem crédito pré-pago. A resposta é `402 ... Your prepayment credits are
+fica sem crédito pré-pago. A resposta é `402 ... Your prepayment credits are
 depleted`. O erro aparece na primeira chamada ao modelo, então o spike falha
 no meio do `abrir` e pode deixar uma sessão pela metade no banco.
 **Saída:** conferir o crédito em `ai.studio/projects` antes de rodar os testes
@@ -134,3 +140,31 @@ todas as tentativas de uma janela de vários minutos. A mesma topologia rodou
 inteira com `gemini-3.5-flash` (T3 a T6). Erro transitório do lado do Google,
 não do código. Ao rodar testes reais, valer-se de um segundo modelo estável
 como reserva, parametrizado por `AURORA_MODELO_*`, sem editar o código.
+
+### O 503 muda de modelo entre uma janela e outra
+Na Fase 4 (2026-10-06) foi `gemini-3.5-flash` que deu `503` — o mesmo modelo que
+tinha salvado a Fase 2 — e também `gemini-3.8-flash` e `gemini-3.1-pro-preview`.
+Numa chamada de texto puro o `3.5-flash` respondeu "ok" e, minutos depois,
+voltou a dar `503`: a capacidade oscila dentro da mesma sessão de trabalho.
+`gemini-3.5-flash-lite` respondeu a tudo, inclusive tool calling, e rodou o
+fluxo inteiro do avaliador. **Saída:** não tratar o 503 como "modelo errado"
+nem reescrever nada; trocar `AURORA_MODELO_*` e seguir. Antes de concluir que o
+problema é de código, provar com uma chamada mínima por modelo (texto puro e
+com `tools`), que custa centavos e separa capacidade de bug.
+
+### Depois de uma negação, o modelo refaz o pedido sozinho
+Com `gemini-3.5-flash-lite`, negar a confirmação de `reservar` fazia o
+especialista chamar `reservar` outra vez no mesmo turno de retomada: a resposta
+`{"error": "This tool call is rejected."}` parece, para o modelo, um erro a
+contornar. O efeito é uma pendência nova logo depois da negação — nada é
+gravado, mas ela aparece em `confirmacoes_pendentes` e pode ser aprovada depois.
+**Saída:** instrução explícita nos dois especialistas: confirmação negada não se
+refaz, pergunta-se ao morador. Resolveu na execução real.
+
+### O modelo rotula o dado da sessão como sendo de outro apartamento
+À pergunta "sou do 302, quais reservas o 302 tem?", a primeira versão respondeu
+"o apartamento 302 possui a seguinte reserva: RSV-1377" — que é do 101. Nenhum
+dado vazou (a tool só vê a sessão), mas a frase informa errado e passa a
+impressão de que a garantia falhou. **Saída:** instrução dizendo que o resultado
+da tool é sempre do apartamento da sessão e não pode ser apresentado como sendo
+de outro. Depois disso a resposta virou "as reservas do seu apartamento são...".
