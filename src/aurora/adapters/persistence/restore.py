@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
+
 from aurora.adapters.persistence.connection import open_connection
 from aurora.adapters.persistence.schema import create_schema
 from aurora.config import database_path
@@ -95,6 +97,8 @@ def main() -> None:
         "--sessoes", action="store_true", help="apaga também as sessões ADK antes de restaurar"
     )
     args = parser.parse_args()
+    # Mesma fonte de configuração da API: sem isso, restore e API podem usar bancos diferentes.
+    load_dotenv(override=False)
     database: Path = args.banco or database_path()
     restaurar(database, args.dados, sessoes=args.sessoes)
     print(f"Dados restaurados em {database}")
