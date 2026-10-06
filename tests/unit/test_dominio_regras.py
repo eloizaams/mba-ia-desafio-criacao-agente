@@ -8,7 +8,9 @@ import pytest
 
 from aurora.domain.area import Area
 from aurora.domain.codigo import gerar_codigo_reserva
+from aurora.domain.erros import DadoInvalido
 from aurora.domain.reserva import Reserva, StatusReserva
+from aurora.domain.visitante import Visitante
 
 DOMINIO = Path(__file__).parents[2] / "src" / "aurora" / "domain"
 
@@ -48,3 +50,9 @@ def test_dominio_nao_importa_adk_fastapi_nem_sqlite() -> None:
                 nomes = [no.module]
             for nome in nomes:
                 assert not nome.startswith(proibidos), f"{arquivo.name} importa {nome}"
+
+
+@pytest.mark.parametrize("nome", ["", "   "])
+def test_visitante_sem_nome_e_recusado(nome: str) -> None:
+    with pytest.raises(DadoInvalido):
+        Visitante(apartamento="101", nome=nome, data=date(2030, 4, 21))

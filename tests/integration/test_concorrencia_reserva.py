@@ -36,3 +36,29 @@ def test_disputa_pela_mesma_area_e_data_tem_um_vencedor(banco: Path) -> None:
             "AND data = '2030-05-11' AND status = 'ativa'"
         ).fetchone()
     assert ativas == 1
+
+
+def test_sem_o_indice_checar_e_gravar_deixa_todos_gravarem(banco: Path) -> None:
+    # Prova de contraste: sem a constraint, a checagem prévia não impede nada.
+    # A barreira entre checar e gravar força todas as checagens antes de qualquer gravação.
+    with sqlite3.connect(banco) as conexao:
+        conexao.execute("DROP INDEX uq_reserva_ativa_area_data")
+    repo = RepositorioSqlite(banco)
+    barreira = threading.Barrier(CONCORRENTES)
+
+    def checar_e_gravar(indice: int) -> str:
+        livre = not repo.ocupada("salao-de-festas", date(2030, 5, 11))
+        barreira.wait()
+        if livre:
+            repo.gravar_reserva(
+                ["101", "102", "201", "202", "301", "302"][indice % 6],
+                "salao-de-festas",
+                date(2030, 5, 11),
+            )
+            return "gravada"
+        return "indisponivel"
+
+    with ThreadPoolExecutor(max_workers=CONCORRENTES) as pool:
+        resultados = Counter(pool.map(checar_e_gravar, range(CONCORRENTES)))
+
+    assert resultados == Counter({"gravada": CONCORRENTES})

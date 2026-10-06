@@ -1,6 +1,7 @@
 import json
 import sqlite3
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -12,44 +13,102 @@ from aurora.domain.erros import DataIndisponivel
 DADOS = Path(__file__).parents[2] / "dados"
 
 
-def _contagens(banco: Path) -> dict[str, int]:
+def _json(nome: str) -> list[dict[str, object]]:
+    conteudo: list[dict[str, object]] = json.loads((DADOS / nome).read_text(encoding="utf-8"))
+    return conteudo
+
+
+def _linhas(banco: Path, sql: str) -> list[tuple[object, ...]]:
     with sqlite3.connect(banco) as conexao:
-        return {
-            tabela: conexao.execute(f"SELECT COUNT(*) FROM {tabela}").fetchone()[0]
-            for tabela in ("areas", "apartamentos", "reservas", "visitantes")
-        }
+        return [tuple(linha) for linha in conexao.execute(sql).fetchall()]
 
 
-def test_restore_carrega_os_json_de_dados(tmp_path: Path) -> None:
+def _reservas_ativas(banco: Path) -> list[tuple[object, ...]]:
+    return _linhas(
+        banco,
+        "SELECT codigo, apartamento, area, data FROM reservas "
+        "WHERE status = 'ativa' ORDER BY codigo",
+    )
+
+
+def _visitantes(banco: Path) -> list[tuple[object, ...]]:
+    return _linhas(
+        banco, "SELECT apartamento, nome, data FROM visitantes ORDER BY apartamento, nome, data"
+    )
+
+
+def _esperado_reservas() -> list[tuple[object, ...]]:
+    return sorted(
+        (r["codigo"], r["apartamento"], r["area"], r["data"]) for r in _json("reservas.json")
+    )
+
+
+def _esperado_visitantes() -> list[tuple[object, ...]]:
+    return sorted((v["apartamento"], v["nome"], v["data"]) for v in _json("visitantes.json"))
+
+
+def test_restore_grava_exatamente_o_conteudo_dos_json(tmp_path: Path) -> None:
     banco = tmp_path / "aurora.db"
 
     restaurar(banco, DADOS)
 
-    esperado = {
-        "areas": len(json.loads((DADOS / "areas.json").read_text())),
-        "apartamentos": len(json.loads((DADOS / "apartamentos.json").read_text())),
-        "reservas": len(json.loads((DADOS / "reservas.json").read_text())),
-        "visitantes": len(json.loads((DADOS / "visitantes.json").read_text())),
+    assert _reservas_ativas(banco) == _esperado_reservas()
+    assert _visitantes(banco) == _esperado_visitantes()
+    areas = {
+        (linha[0], Decimal(str(linha[1]))) for linha in _linhas(banco, "SELECT id, taxa FROM areas")
     }
-    assert _contagens(banco) == esperado
+    assert areas == {(a["id"], Decimal(str(a["taxa"]))) for a in _json("areas.json")}
 
 
-def test_restore_desfaz_mudancas_da_conversa_e_e_idempotente(tmp_path: Path) -> None:
+def test_restore_duas_vezes_produz_o_mesmo_banco_inclusive_os_ids(tmp_path: Path) -> None:
+    banco = tmp_path / "aurora.db"
+    restaurar(banco, DADOS)
+    primeiro = _linhas(banco, "SELECT id, apartamento, nome, data FROM visitantes ORDER BY id")
+
+    restaurar(banco, DADOS)
+
+    assert (
+        _linhas(banco, "SELECT id, apartamento, nome, data FROM visitantes ORDER BY id") == primeiro
+    )
+
+
+def test_restore_desfaz_reservas_e_visitantes_da_conversa(tmp_path: Path) -> None:
     banco = tmp_path / "aurora.db"
     restaurar(banco, DADOS)
     repo = RepositorioSqlite(banco)
     repo.gravar_reserva("101", "salao-de-festas", date(2030, 4, 20))
-    assert _contagens(banco)["reservas"] == 4
+    repo.autorizar("101", "Joana Ribeiro", date(2030, 4, 21))
 
     restaurar(banco, DADOS)
-    primeira = _contagens(banco)
+
+    assert _reservas_ativas(banco) == _esperado_reservas()
+    assert _visitantes(banco) == _esperado_visitantes()
+
+
+def test_reserva_do_seed_cancelada_volta_a_ativa_com_o_mesmo_codigo(tmp_path: Path) -> None:
+    banco = tmp_path / "aurora.db"
+    restaurar(banco, DADOS)
+    RepositorioSqlite(banco).cancelar("101", "RSV-1377")
+
     restaurar(banco, DADOS)
 
-    assert primeira["reservas"] == 3
-    assert _contagens(banco) == primeira
+    assert ("RSV-1377", "101", "quadra", "2030-03-09") in _reservas_ativas(banco)
 
 
-def test_reserva_do_seed_bloqueia_a_mesma_data(tmp_path: Path) -> None:
+def test_reserva_cancelada_fora_do_seed_fica_como_historico(tmp_path: Path) -> None:
+    banco = tmp_path / "aurora.db"
+    restaurar(banco, DADOS)
+    repo = RepositorioSqlite(banco)
+    criada = repo.gravar_reserva("101", "salao-de-festas", date(2030, 4, 20))
+    repo.cancelar("101", criada.codigo)
+
+    restaurar(banco, DADOS)
+
+    historico = _linhas(banco, f"SELECT status FROM reservas WHERE codigo = '{criada.codigo}'")
+    assert historico == [("cancelada",)]
+
+
+def test_seed_continua_bloqueando_a_data_depois_do_restore(tmp_path: Path) -> None:
     banco = tmp_path / "aurora.db"
     restaurar(banco, DADOS)
     repo = RepositorioSqlite(banco)

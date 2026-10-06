@@ -52,6 +52,11 @@ agenda como "data indisponível", é preciso olhar a mensagem. Uma FK inválida
 (área ou apartamento inexistente) ainda sobe como `IntegrityError`, então a
 camada de aplicação precisa validar a existência antes de gravar.
 
+### `executescript` fecha a transação aberta
+`Connection.executescript` faz COMMIT antes de rodar o script. Dentro de
+`with conexao:`, o DDL sai da transação sem aviso. Criar o schema fora do
+bloco transacional e deixar só os DML dentro.
+
 ## Testes com LLM
 
 ### Testar agentes sem chave de API
