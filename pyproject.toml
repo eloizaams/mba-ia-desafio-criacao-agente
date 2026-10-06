@@ -1,0 +1,52 @@
+[project]
+name = "aurora"
+version = "0.1.0"
+description = "Assistente virtual do Residencial Aurora, construído com Google ADK"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    # Versão exata: o comportamento de confirmação e de retomada depende da versão (ver docs/PLANO.md, Fase 2).
+    "google-adk==2.11.0",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "aiosqlite>=0.20",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "pre-commit>=3.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aurora"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src/aurora", "tests"]
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["aurora.domain.*", "aurora.application.*"]
+disallow_any_explicit = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

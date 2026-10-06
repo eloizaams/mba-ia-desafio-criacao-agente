@@ -4,7 +4,7 @@
 
 ## Status
 - [x] Fase 0 — Decisões de alto nível (este documento)
-- [ ] Fase 1 — Setup do projeto (`feature/setup`)
+- [x] Fase 1 — Setup do projeto (`feature/setup`): ADK fixado em `2.11.0` (mais recente da série 2 no PyPI), `uv.lock` gerado, ruff/mypy/pytest/pre-commit configurados, CI em `.github/workflows/ci.yml`.
 - [ ] Fase 2 — Spike ADK: confirmação + sessão persistida (`spike/adk-confirmacao`, descartável)
 - [ ] Fase 3 — Domínio + persistência + restauração (`feature/dominio-persistencia`)
 - [ ] Fase 4 — Tools + agentes (`feature/agentes`)
