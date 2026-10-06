@@ -5,28 +5,13 @@ Sessões e eventos persistem no SQLite; um novo processo continua de onde parou.
 
 from pathlib import Path
 
-from httpx import ASGITransport, AsyncClient
-
 from aurora.adapters.adk.agentes import NOME_RAIZ, NOME_RESERVAS
-from aurora.adapters.api.app import criar_api
 from aurora.adapters.persistence.sqlite import SqliteRepository
-from aurora.application.reservas import ReservasService
-from aurora.application.visitantes import VisitantesService
+from tests.support.api import novo_client
 from tests.support.condominio import SALAO, FabricaDeRunner
 from tests.support.scripted_llm import ScriptedLlm
 
 DATA_SALAO = "2030-04-20"
-
-
-def _novo_client_sobre_mesmo_banco(novo_runner: FabricaDeRunner, banco: Path) -> AsyncClient:
-    repo = SqliteRepository(banco)
-    api = criar_api(
-        runner=novo_runner(),
-        reservas=ReservasService(agenda=repo, areas=repo),
-        visitantes=VisitantesService(visitantes=repo),
-        apartamentos=repo,
-    )
-    return AsyncClient(transport=ASGITransport(app=api), base_url="http://test")
 
 
 async def test_app_novo_ve_mesmos_eventos_e_aceita_nova_mensagem(
@@ -40,14 +25,14 @@ async def test_app_novo_ve_mesmos_eventos_e_aceita_nova_mensagem(
         chamar="reservar", argumentos={"area": SALAO, "data": DATA_SALAO}
     )
 
-    async with _novo_client_sobre_mesmo_banco(novo_runner, banco) as c1:
+    async with novo_client(novo_runner, banco) as c1:
         sid = (await c1.post("/sessoes", json={"apartamento": "101"})).json()["session_id"]
         await c1.post(
             f"/sessoes/{sid}/mensagens", json={"texto": f"Reserve o salão para {DATA_SALAO}."}
         )
         eventos_antes = (await c1.get(f"/sessoes/{sid}/eventos")).json()
 
-    async with _novo_client_sobre_mesmo_banco(novo_runner, banco) as c2:
+    async with novo_client(novo_runner, banco) as c2:
         eventos_depois = (await c2.get(f"/sessoes/{sid}/eventos")).json()
         assert len(eventos_depois) == len(eventos_antes)
 
@@ -68,14 +53,14 @@ async def test_app_novo_aprova_pendencia_anterior(
         chamar="reservar", argumentos={"area": SALAO, "data": DATA_SALAO}
     )
 
-    async with _novo_client_sobre_mesmo_banco(novo_runner, banco) as c1:
+    async with novo_client(novo_runner, banco) as c1:
         sid = (await c1.post("/sessoes", json={"apartamento": "101"})).json()["session_id"]
         resp = await c1.post(
             f"/sessoes/{sid}/mensagens", json={"texto": f"Reserve o salão para {DATA_SALAO}."}
         )
         pid = resp.json()["confirmacoes_pendentes"][0]["id"]
 
-    async with _novo_client_sobre_mesmo_banco(novo_runner, banco) as c2:
+    async with novo_client(novo_runner, banco) as c2:
         resp_conf = await c2.post(
             f"/sessoes/{sid}/confirmacoes", json={"id": pid, "confirmado": True}
         )

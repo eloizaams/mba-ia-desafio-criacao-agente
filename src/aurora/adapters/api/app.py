@@ -10,10 +10,11 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from google.adk.runners import Runner
+from google.adk.sessions.session import Session
 from google.genai.errors import ClientError, ServerError
 
-from aurora.adapters.adk.confirmacoes import pendentes
-from aurora.adapters.adk.conversa import confirmar, enviar
+from aurora.adapters.adk.confirmacoes import PendenciaConfirmacao, pendentes
+from aurora.adapters.adk.conversa import Turno, confirmar, enviar
 from aurora.adapters.adk.eventos import evento_para_json
 from aurora.adapters.adk.sessoes import buscar_sessao, criar_sessao
 from aurora.adapters.api.schemas import (
@@ -36,11 +37,11 @@ _503_DETALHE = (
 )
 
 
-def _pendencia_api(p: Any) -> Pendencia:
+def _pendencia_api(p: PendenciaConfirmacao) -> Pendencia:
     return Pendencia(id=p.id, acao=p.acao, detalhes=p.detalhes)
 
 
-def _resposta_conversa(turno: Any) -> RespostaConversa:
+def _resposta_conversa(turno: Turno) -> RespostaConversa:
     return RespostaConversa(
         resposta=turno.resposta,
         confirmacoes_pendentes=[_pendencia_api(p) for p in turno.pendencias],
@@ -63,7 +64,7 @@ def criar_api(
     async def _client_error(_req: Request, exc: ClientError) -> JSONResponse:
         if exc.code == 429:
             return JSONResponse(status_code=503, content={"detail": _503_DETALHE})
-        raise exc
+        raise
 
     @app.post("/sessoes", status_code=201, response_model=SessaoCriada)
     async def post_sessoes(corpo: NovaSessao) -> SessaoCriada:
@@ -108,7 +109,7 @@ def criar_api(
             for v in visitantes.meus_visitantes(numero)
         ]
 
-    async def _exigir_sessao(session_id: str) -> Any:
+    async def _exigir_sessao(session_id: str) -> Session:
         sessao = await buscar_sessao(runner, session_id)
         if sessao is None:
             raise HTTPException(status_code=404, detail="Sessão não encontrada")

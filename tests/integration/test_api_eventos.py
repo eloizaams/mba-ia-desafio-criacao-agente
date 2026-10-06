@@ -2,28 +2,12 @@
 
 from pathlib import Path
 
-from httpx import ASGITransport, AsyncClient
-
 from aurora.adapters.adk.agentes import NOME_RAIZ, NOME_REGULAMENTO, NOME_RESERVAS
-from aurora.adapters.api.app import criar_api
-from aurora.adapters.persistence.sqlite import SqliteRepository
-from aurora.application.reservas import ReservasService
-from aurora.application.visitantes import VisitantesService
+from tests.support.api import novo_client
 from tests.support.condominio import QUADRA, FabricaDeRunner
 from tests.support.scripted_llm import ScriptedLlm
 
 DATA_QUADRA = "2030-04-06"
-
-
-def _client(novo_runner: FabricaDeRunner, banco: Path) -> AsyncClient:
-    repo = SqliteRepository(banco)
-    api = criar_api(
-        runner=novo_runner(),
-        reservas=ReservasService(agenda=repo, areas=repo),
-        visitantes=VisitantesService(visitantes=repo),
-        apartamentos=repo,
-    )
-    return AsyncClient(transport=ASGITransport(app=api), base_url="http://test")
 
 
 async def test_eventos_em_ordem_e_nao_vazios(
@@ -37,7 +21,7 @@ async def test_eventos_em_ordem_e_nao_vazios(
         chamar="reservar", argumentos={"area": QUADRA, "data": DATA_QUADRA}
     )
 
-    async with _client(novo_runner, banco) as client:
+    async with novo_client(novo_runner, banco) as client:
         sid = (await client.post("/sessoes", json={"apartamento": "101"})).json()["session_id"]
         await client.post(
             f"/sessoes/{sid}/mensagens",
@@ -63,7 +47,7 @@ async def test_eventos_nao_tem_autor_regulamento(
         chamar="consultar_regulamento", argumentos={"topico": "taxa"}
     )
 
-    async with _client(novo_runner, banco) as client:
+    async with novo_client(novo_runner, banco) as client:
         sid = (await client.post("/sessoes", json={"apartamento": "101"})).json()["session_id"]
         await client.post(f"/sessoes/{sid}/mensagens", json={"texto": "Qual é a taxa do salão?"})
         resp = await client.get(f"/sessoes/{sid}/eventos")

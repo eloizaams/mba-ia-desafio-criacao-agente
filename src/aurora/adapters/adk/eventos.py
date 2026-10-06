@@ -11,5 +11,4 @@ from google.adk.events.event import Event
 
 
 def evento_para_json(event: Event) -> dict[str, Any]:
-    result: dict[str, Any] = event.model_dump(mode="json", by_alias=True, exclude_none=True)
-    return result
+    return event.model_dump(mode="json", by_alias=True, exclude_none=True)

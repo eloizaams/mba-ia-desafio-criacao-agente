@@ -25,8 +25,7 @@ class Turno:
 
 async def enviar(runner: Runner, sessao_id: str, texto: str) -> Turno:
     mensagem = types.Content(role="user", parts=[types.Part(text=texto)])
-    resposta = await _executar(runner, sessao_id, mensagem)
-    return resposta
+    return await _executar(runner, sessao_id, mensagem)
 
 
 async def confirmar(runner: Runner, sessao_id: str, id_pendencia: str, confirmado: bool) -> Turno:

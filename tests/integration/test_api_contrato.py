@@ -6,14 +6,12 @@ o mesmo padrão dos testes de agentes.
 """
 
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
-from httpx import ASGITransport, AsyncClient
+from google.genai.errors import ServerError
 
 from aurora.adapters.adk.agentes import NOME_RAIZ, NOME_RESERVAS, NOME_VISITANTES
-from aurora.adapters.api.app import criar_api
-from aurora.adapters.persistence.sqlite import SqliteRepository
-from aurora.application.reservas import ReservasService
-from aurora.application.visitantes import VisitantesService
+from tests.support.api import novo_client
 from tests.support.condominio import QUADRA, SALAO, FabricaDeRunner
 from tests.support.scripted_llm import ScriptedLlm
 
@@ -21,22 +19,11 @@ DATA_SALAO = "2030-04-20"
 DATA_QUADRA = "2030-04-06"
 
 
-def _client(novo_runner: FabricaDeRunner, banco: Path) -> AsyncClient:
-    repo = SqliteRepository(banco)
-    api = criar_api(
-        runner=novo_runner(),
-        reservas=ReservasService(agenda=repo, areas=repo),
-        visitantes=VisitantesService(visitantes=repo),
-        apartamentos=repo,
-    )
-    return AsyncClient(transport=ASGITransport(app=api), base_url="http://test")
-
-
 async def test_post_sessoes_apartamento_existente_retorna_201(
     novo_runner: FabricaDeRunner, banco: Path
 ) -> None:
     """Passo 2: sessão criada."""
-    async with _client(novo_runner, banco) as client:
+    async with novo_client(novo_runner, banco) as client:
         resp = await client.post("/sessoes", json={"apartamento": "101"})
     assert resp.status_code == 201
     assert "session_id" in resp.json()
@@ -46,7 +33,7 @@ async def test_post_sessoes_apartamento_inexistente_retorna_422(
     novo_runner: FabricaDeRunner, banco: Path
 ) -> None:
     """Passo 2: apartamento inválido."""
-    async with _client(novo_runner, banco) as client:
+    async with novo_client(novo_runner, banco) as client:
         resp = await client.post("/sessoes", json={"apartamento": "999"})
     assert resp.status_code == 422
 
@@ -55,7 +42,7 @@ async def test_get_eventos_sessao_inexistente_retorna_404(
     novo_runner: FabricaDeRunner, banco: Path
 ) -> None:
     """Passo 9: 404 em GET /eventos."""
-    async with _client(novo_runner, banco) as client:
+    async with novo_client(novo_runner, banco) as client:
         resp = await client.get("/sessoes/nao-existe/eventos")
     assert resp.status_code == 404
 
@@ -63,7 +50,7 @@ async def test_get_eventos_sessao_inexistente_retorna_404(
 async def test_post_mensagem_sessao_inexistente_retorna_404(
     novo_runner: FabricaDeRunner, banco: Path
 ) -> None:
-    async with _client(novo_runner, banco) as client:
+    async with novo_client(novo_runner, banco) as client:
         resp = await client.post("/sessoes/nao-existe/mensagens", json={"texto": "oi"})
     assert resp.status_code == 404
 
@@ -71,7 +58,7 @@ async def test_post_mensagem_sessao_inexistente_retorna_404(
 async def test_post_confirmacao_sessao_inexistente_retorna_404(
     novo_runner: FabricaDeRunner, banco: Path
 ) -> None:
-    async with _client(novo_runner, banco) as client:
+    async with novo_client(novo_runner, banco) as client:
         resp = await client.post(
             "/sessoes/nao-existe/confirmacoes", json={"id": "x", "confirmado": True}
         )
@@ -89,7 +76,7 @@ async def test_reserva_sem_taxa_nao_pede_confirmacao_e_aparece_em_reservas(
         chamar="reservar", argumentos={"area": QUADRA, "data": DATA_QUADRA}
     )
 
-    async with _client(novo_runner, banco) as client:
+    async with novo_client(novo_runner, banco) as client:
         sid = (await client.post("/sessoes", json={"apartamento": "101"})).json()["session_id"]
         resp = await client.post(
             f"/sessoes/{sid}/mensagens",
@@ -112,13 +99,14 @@ async def test_reserva_com_taxa_gera_pendencia_e_nao_grava(
         chamar="reservar", argumentos={"area": SALAO, "data": DATA_SALAO}
     )
 
-    async with _client(novo_runner, banco) as client:
+    async with novo_client(novo_runner, banco) as client:
         sid = (await client.post("/sessoes", json={"apartamento": "101"})).json()["session_id"]
         resp = await client.post(
             f"/sessoes/{sid}/mensagens",
             json={"texto": f"Reserve o salão para {DATA_SALAO}."},
         )
         assert resp.status_code == 200
+        assert resp.json()["resposta"] == ""
         pendentes = resp.json()["confirmacoes_pendentes"]
         assert len(pendentes) == 1
         assert pendentes[0]["detalhes"]["area"] == SALAO
@@ -138,7 +126,7 @@ async def test_negar_confirmacao_nao_grava(
         chamar="reservar", argumentos={"area": SALAO, "data": DATA_SALAO}
     )
 
-    async with _client(novo_runner, banco) as client:
+    async with novo_client(novo_runner, banco) as client:
         sid = (await client.post("/sessoes", json={"apartamento": "101"})).json()["session_id"]
         resp = await client.post(
             f"/sessoes/{sid}/mensagens",
@@ -164,7 +152,7 @@ async def test_aprovar_grava_e_reenviar_mesmo_id_retorna_409(
         chamar="reservar", argumentos={"area": SALAO, "data": DATA_SALAO}
     )
 
-    async with _client(novo_runner, banco) as client:
+    async with novo_client(novo_runner, banco) as client:
         sid = (await client.post("/sessoes", json={"apartamento": "101"})).json()["session_id"]
         resp = await client.post(
             f"/sessoes/{sid}/mensagens",
@@ -188,7 +176,7 @@ async def test_aprovar_grava_e_reenviar_mesmo_id_retorna_409(
 
 async def test_id_inexistente_retorna_409(novo_runner: FabricaDeRunner, banco: Path) -> None:
     """Passo 9: id inventado → 409."""
-    async with _client(novo_runner, banco) as client:
+    async with novo_client(novo_runner, banco) as client:
         sid = (await client.post("/sessoes", json={"apartamento": "101"})).json()["session_id"]
         resp = await client.post(
             f"/sessoes/{sid}/confirmacoes", json={"id": "id-inventado", "confirmado": True}
@@ -208,7 +196,7 @@ async def test_autorizar_visitante_gera_pendencia_e_aprovar_registra(
         argumentos={"nome": "Joana Ribeiro", "data": "2030-04-21"},
     )
 
-    async with _client(novo_runner, banco) as client:
+    async with novo_client(novo_runner, banco) as client:
         sid = (await client.post("/sessoes", json={"apartamento": "101"})).json()["session_id"]
         resp = await client.post(
             f"/sessoes/{sid}/mensagens",
@@ -227,3 +215,16 @@ async def test_autorizar_visitante_gera_pendencia_e_aprovar_registra(
 
         visitantes_depois = (await client.get("/apartamentos/101/visitantes")).json()
     assert any(v["nome"] == "Joana Ribeiro" for v in visitantes_depois)
+
+
+async def test_server_error_vira_503(novo_runner: FabricaDeRunner, banco: Path) -> None:
+    """ServerError do modelo vira 503 (handler registrado em criar_api)."""
+    async with novo_client(novo_runner, banco) as client:
+        sid = (await client.post("/sessoes", json={"apartamento": "101"})).json()["session_id"]
+        with patch(
+            "aurora.adapters.api.app.enviar",
+            new=AsyncMock(side_effect=ServerError(503, {"error": {"message": "overloaded"}})),
+        ):
+            resp = await client.post(f"/sessoes/{sid}/mensagens", json={"texto": "oi"})
+    assert resp.status_code == 503
+    assert "AURORA_MODELO_*" in resp.json()["detail"]
