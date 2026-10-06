@@ -76,7 +76,12 @@ def test_nenhuma_tool_aceita_apartamento(tools: list[FunctionTool]) -> None:
 
 
 def test_so_cobranca_e_acesso_exigem_confirmacao(tools: list[FunctionTool]) -> None:
-    """Garantia 1: nem mais (cancelar não confirma), nem menos."""
+    """Garantia 1: nem mais (cancelar não confirma), nem menos.
+
+    Lê um atributo privado do ADK porque não há superfície pública que diga se uma tool
+    exige confirmação. Vale enquanto a versão estiver fixada em 2.11.0: se o pin subir,
+    este teste é um dos lugares a conferir antes de qualquer outra coisa.
+    """
     com_confirmacao = {tool.name for tool in tools if tool._require_confirmation is not False}
 
     assert com_confirmacao == TOOLS_QUE_CONFIRMAM
