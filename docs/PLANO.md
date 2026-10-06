@@ -8,7 +8,7 @@
 - [x] Fase 2 — Spike ADK (`spike/adk-confirmacao`, código na tag `spike-fase-2`): padrão de confirmação/retomada comprovado em execução, sem chave de API. Resultados em [`docs/ADK-CONFIRMACAO.md`](ADK-CONFIRMACAO.md); frições em [`DESAFIOS.md`](../DESAFIOS.md).
 - [x] Fase 3 — Domínio + persistência + restauração (`feature/dominio-persistencia`): domínio, portas, SQLite com índice parcial, `aurora-restore`, testes. Spec em [`docs/specs/001-dominio-persistencia/`](specs/001-dominio-persistencia/spec.md).
 - [x] Fase 4 — Tools + agentes (`feature/agentes`): casos de uso, tools sem apartamento, topologia (root + 2 especialistas + regulamento como `AgentTool`), confirmações derivadas dos eventos, 80 testes sem chave de API. Spec em [`docs/specs/002-tools-agentes/`](specs/002-tools-agentes/spec.md).
-- [ ] Fase 5 — API (`feature/api`)
+- [ ] Fase 5 — API (`feature/api`): spec em [`docs/specs/003-api/`](specs/003-api/spec.md), implementação pendente.
 - [ ] Fase 6 — Concorrência e hardening das garantias (`feature/garantias`)
 - [ ] Fase 7 — E2E do avaliador, README final, release `v1.0.0`
 
