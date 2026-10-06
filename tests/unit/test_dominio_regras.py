@@ -25,10 +25,11 @@ def test_area_so_cobra_com_taxa_maior_que_zero(taxa: Decimal, cobra: bool) -> No
     assert area.gera_cobranca is cobra
 
 
+@pytest.mark.flaky(reruns=1)
 def test_codigo_de_reserva_tem_formato_rsv_e_muda_entre_chamadas() -> None:
     codigos = {gerar_codigo_reserva() for _ in range(50)}
 
-    assert len(codigos) >= 49  # colisão esporádica é aceitável; fixo seria sinal de bug
+    assert len(codigos) == 50
     assert all(re.fullmatch(r"RSV-[0-9A-F]{6}", c) for c in codigos)
 
 

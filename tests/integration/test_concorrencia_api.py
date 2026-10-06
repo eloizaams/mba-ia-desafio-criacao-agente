@@ -1,23 +1,20 @@
 """Garantia 5: disputa pela API (passo 14).
 
 Duas sessões (apartamentos 101 e 201) pedem a mesma área e data. Ambas ficam com
-confirmação pendente. As aprovações são despachadas sequencialmente, mas isso não
-enfraquece a prova:
+confirmação pendente. As aprovações são despachadas sequencialmente — aprovações
+concorrentes causam SQLITE_LOCKED intra-processo (aiosqlite + sqlite3 síncrono no
+mesmo processo); a race condition ao nível de repositório é provada em
+`test_concorrencia_reserva.py` com threads e barreira.
 
-- A corretude da race condition (N gravações simultâneas → 1 vencedora) é provada
-  ao nível do repositório por `test_concorrencia_reserva.py`, com threads e barreira.
-- Este teste prova a propriedade que o avaliador confere no passo 14: **ambas as
-  aprovações respondem HTTP 200** (a perdedora recebe `data_indisponivel`, resultado
-  de domínio absorvido pelo agente, não um erro HTTP) e **exatamente uma reserva
-  do salão persiste**.
-
-Em produção (dois `curl` separados), o ADK usa `aiosqlite` em processos distintos
-e o WAL do SQLite garante a exclusividade. Em processo único com asyncio, as
-conexões síncronas e assíncronas disputam o mesmo lock intra-processo, o que não é
-cenário do avaliador.
+Este teste prova a propriedade que o avaliador confere no passo 14:
+- ambas as aprovações respondem HTTP 200 (a perdedora recebe `data_indisponivel`,
+  resultado de domínio absorvido pelo agente, não um erro HTTP);
+- exatamente uma reserva do salão persiste.
 """
 
 from pathlib import Path
+
+from httpx import AsyncClient
 
 from aurora.adapters.adk.agentes import NOME_RAIZ, NOME_RESERVAS
 from tests.support.api import novo_client
@@ -26,6 +23,15 @@ from tests.support.scripted_llm import ScriptedLlm
 
 DATA_DISPUTA = "2030-05-11"
 TEXTO_RESERVA = f"Reserve o salão de festas para {DATA_DISPUTA}."
+
+
+async def _preparar_sessao(client: AsyncClient, apartamento: str) -> tuple[str, str]:
+    """Cria sessão, pede reserva e devolve (session_id, conf_id) da pendência."""
+    sid = (await client.post("/sessoes", json={"apartamento": apartamento})).json()["session_id"]
+    resp = await client.post(f"/sessoes/{sid}/mensagens", json={"texto": TEXTO_RESERVA})
+    pendentes = resp.json()["confirmacoes_pendentes"]
+    assert len(pendentes) == 1, f"sessão {apartamento} deve ter pendência"
+    return sid, pendentes[0]["id"]
 
 
 async def test_aprovacoes_disputando_mesma_vaga_ambas_200_e_uma_reserva(
@@ -40,25 +46,14 @@ async def test_aprovacoes_disputando_mesma_vaga_ambas_200_e_uma_reserva(
     )
 
     async with novo_client(novo_runner, banco) as client:
-        sid_101 = (await client.post("/sessoes", json={"apartamento": "101"})).json()["session_id"]
-        sid_201 = (await client.post("/sessoes", json={"apartamento": "201"})).json()["session_id"]
-
-        resp_101 = await client.post(f"/sessoes/{sid_101}/mensagens", json={"texto": TEXTO_RESERVA})
-        resp_201 = await client.post(f"/sessoes/{sid_201}/mensagens", json={"texto": TEXTO_RESERVA})
-
-        pendentes_101 = resp_101.json()["confirmacoes_pendentes"]
-        pendentes_201 = resp_201.json()["confirmacoes_pendentes"]
-        assert len(pendentes_101) == 1, "sessão 101 deve ter pendência"
-        assert len(pendentes_201) == 1, "sessão 201 deve ter pendência"
-
-        pid_101 = pendentes_101[0]["id"]
-        pid_201 = pendentes_201[0]["id"]
+        sid_101, conf_id_101 = await _preparar_sessao(client, "101")
+        sid_201, conf_id_201 = await _preparar_sessao(client, "201")
 
         r101 = await client.post(
-            f"/sessoes/{sid_101}/confirmacoes", json={"id": pid_101, "confirmado": True}
+            f"/sessoes/{sid_101}/confirmacoes", json={"id": conf_id_101, "confirmado": True}
         )
         r201 = await client.post(
-            f"/sessoes/{sid_201}/confirmacoes", json={"id": pid_201, "confirmado": True}
+            f"/sessoes/{sid_201}/confirmacoes", json={"id": conf_id_201, "confirmado": True}
         )
 
         # Ambas retornam 200: data_indisponivel é resultado de domínio, não erro HTTP.

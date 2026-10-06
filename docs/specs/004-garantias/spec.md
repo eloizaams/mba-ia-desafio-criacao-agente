@@ -4,7 +4,7 @@ Fase 6 de [`docs/PLANO.md`](../../PLANO.md). Garantias e passos do avaliador cob
 
 ## Escopo
 
-1. **Teste de disputa concorrente pela API** (passo 14): duas sessões (101 e 201) reservam o mesmo salão na mesma data, aprovam ao mesmo tempo via `asyncio.gather`, ambas respondem `200`, exatamente uma reserva persiste.
+1. **Teste de disputa pela API** (passo 14): duas sessões (101 e 201) reservam o mesmo salão na mesma data, ambas ficam com confirmação pendente, as aprovações são despachadas sequencialmente, ambas respondem `200`, exatamente uma reserva persiste.
 2. **Revisão adversarial das garantias**: confirmar que os testes existentes cobrem todos os vetores de ataque listados abaixo. Adicionar testes de API onde houver lacuna.
 
 Fora desta spec: script E2E do avaliador e README final (Fase 7).
@@ -27,10 +27,10 @@ Fora desta spec: script E2E do avaliador e README final (Fase 7).
 
 | Garantia | O que muda |
 |---|---|
-| G5 Concorrência | Teste novo ao nível HTTP: `asyncio.gather` dispara as duas aprovações na mesma instância da API; a constraint SQLite resolve e o resultado de domínio `data_indisponivel` é absorvido pelo agente, que retorna 200 |
+| G5 Concorrência | Teste novo ao nível HTTP: duas aprovações sequenciais na mesma instância da API; a constraint SQLite garante que a segunda encontra a vaga tomada e recebe `data_indisponivel`, resultado de domínio absorvido pelo agente, que retorna 200 |
 
 ## Notas de implementação
 
-- Um único `AsyncClient` compartilhado (uma instância da API, um `Runner`) para as duas sessões — reflete o cenário real do passo 14.
-- `asyncio.gather` simula o `curl … &` do enunciado; a concorrência é real dentro do event loop asyncio.
+- Um único `AsyncClient` (uma instância da API, um `Runner`) para as duas sessões — reflete o cenário real do passo 14.
+- Aprovações sequenciais: `asyncio.gather` causa `SQLITE_LOCKED` intra-processo (aiosqlite do ADK + sqlite3 síncrono do domínio competem pelo lock WAL no mesmo processo). Em produção (dois processos separados) o WAL resolve; a race condition ao nível de repositório é provada por `test_concorrencia_reserva.py`.
 - A aprovação perdedora recebe `data_indisponivel` como resultado de tool: o agente absorve e responde 200. A rota não levanta erro por resultado de domínio.
