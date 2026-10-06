@@ -59,13 +59,13 @@ def passo(n: int, titulo: str) -> None:
 def criar_sessao(client: httpx.Client, apartamento: str) -> str:
     r = client.post("/sessoes", json={"apartamento": apartamento})
     checar(r.status_code == 201, f"POST /sessoes → 201 (apt {apartamento})")
-    return r.json()["session_id"]
+    return str(r.json()["session_id"])
 
 
 def enviar_msg(client: httpx.Client, session_id: str, texto: str) -> dict[str, Any]:
     r = client.post(f"/sessoes/{session_id}/mensagens", json={"texto": texto})
     checar(r.status_code == 200, "POST /mensagens → 200")
-    return r.json()
+    return dict(r.json())
 
 
 def confirmar(
@@ -75,25 +75,25 @@ def confirmar(
         f"/sessoes/{session_id}/confirmacoes",
         json={"id": conf_id, "confirmado": confirmado},
     )
-    return r.status_code, r.json()
+    return r.status_code, dict(r.json())
 
 
 def get_reservas(client: httpx.Client, numero: str) -> list[dict[str, Any]]:
     r = client.get(f"/apartamentos/{numero}/reservas")
     checar(r.status_code == 200, f"GET /apartamentos/{numero}/reservas → 200")
-    return r.json()
+    return list(r.json())
 
 
 def get_visitantes(client: httpx.Client, numero: str) -> list[dict[str, Any]]:
     r = client.get(f"/apartamentos/{numero}/visitantes")
     checar(r.status_code == 200, f"GET /apartamentos/{numero}/visitantes → 200")
-    return r.json()
+    return list(r.json())
 
 
 def get_eventos(client: httpx.Client, session_id: str) -> list[dict[str, Any]]:
     r = client.get(f"/sessoes/{session_id}/eventos")
     checar(r.status_code == 200, f"GET /sessoes/{session_id}/eventos → 200")
-    return r.json()
+    return list(r.json())
 
 
 def eventos_texto(eventos: list[dict[str, Any]]) -> str:
@@ -101,7 +101,7 @@ def eventos_texto(eventos: list[dict[str, Any]]) -> str:
 
 
 def pendencias(resposta: dict[str, Any]) -> list[dict[str, Any]]:
-    return resposta.get("confirmacoes_pendentes", [])
+    return list(resposta.get("confirmacoes_pendentes", []))
 
 
 def tem_302_isolado(texto: str) -> bool:
@@ -178,7 +178,7 @@ def passo_6(client: httpx.Client, s1: str) -> None:
     checar(len(reservas_quadra) == 1, "Reserva da quadra em 2030-04-06 aparece para o 101")
 
 
-def passo_7(client: httpx.Client, s1: str) -> str | None:
+def passo_7(client: httpx.Client, s1: str) -> None:
     passo(7, "Reservar salão (com taxa) — negar confirmação")
     resp = enviar_msg(client, s1, "Reserve o salão de festas para 2030-04-20.")
     pends = pendencias(resp)
@@ -204,7 +204,6 @@ def passo_7(client: httpx.Client, s1: str) -> str | None:
         r for r in reservas_101 if r["area"] == "salao-de-festas" and r["data"] == "2030-04-20"
     ]
     checar(len(salao_depois) == 0, "Após negar: 101 ainda não tem reserva do salão em 2030-04-20")
-    return None
 
 
 def passo_8(client: httpx.Client, s1: str) -> None:
@@ -350,7 +349,7 @@ def passo_13(client: httpx.Client, s1: str, qtd_eventos_antes: int) -> None:
     eventos = get_eventos(client, s1)
     checar(
         len(eventos) == qtd_eventos_antes,
-        f"Após reinício: S1 devolve {qtd_eventos_antes} eventos (eram {len(eventos)})"
+        f"Após reinício: S1 devolveu {len(eventos)} eventos (esperado {qtd_eventos_antes})"
         if len(eventos) != qtd_eventos_antes
         else f"Após reinício: S1 devolve {len(eventos)} eventos (mesmo de antes)",
     )
@@ -487,7 +486,8 @@ def main() -> None:
         passo_11(client, s1)
         qtd_eventos = passo_12(client, s1)
 
-    passo_13(httpx.Client(base_url=BASE_URL, timeout=120.0), s1, qtd_eventos)
+    with httpx.Client(base_url=BASE_URL, timeout=120.0) as client13:
+        passo_13(client13, s1, qtd_eventos)
 
     passo_14()
 
