@@ -25,7 +25,7 @@ uv run pre-commit run --all-files          # hooks fora do commit
 - O CI (`.github/workflows/ci.yml`) roda exatamente `ruff check`, `ruff format --check`, `mypy` e `pytest`. Rode os quatro antes de abrir PR.
 - Os hooks do pre-commit só valem neste clone depois de `uv run pre-commit install`.
 - Chamadas reais ao Gemini precisam de `GOOGLE_API_KEY` no ambiente. O ADK, como biblioteca, não lê `.env` (só a CLI lê), então carregue com `set -a; source .env; set +a`.
-- Comandos do spike: `docs/ADK-CONFIRMACAO.md`.
+- Comandos do spike: `docs/ADK-CONFIRMACAO.md`. Com `AURORA_LLM=real` o spike usa o Gemini de verdade, com os `AURORA_MODELO_*` do ambiente, em vez do `ScriptedLlm`.
 
 ## Estado atual
 

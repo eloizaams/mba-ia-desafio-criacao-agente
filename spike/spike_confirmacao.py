@@ -13,12 +13,15 @@ Código descartável. Serve para responder, com evidência executável:
 Cada subcomando é um processo separado de propósito: é assim que o passo 13 do
 avaliador (reiniciar a aplicação) é reproduzido de verdade.
 
-Uso:
+Uso (modelo roteirizado, sem chave):
     uv run python spike/spike_confirmacao.py abrir
     uv run python spike/spike_confirmacao.py confirmar <sessao> --aprovar
     uv run python spike/spike_confirmacao.py confirmar <sessao> --negar
     uv run python spike/spike_confirmacao.py eventos <sessao>
     uv run python spike/spike_confirmacao.py agent-tool
+
+Uso (Gemini real): AURORA_LLM=real, com GOOGLE_API_KEY e os AURORA_MODELO_*
+carregados no ambiente. Os mesmos subcomandos valem.
 """
 
 from __future__ import annotations
@@ -26,12 +29,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.apps._configs import ResumabilityConfig
 from google.adk.apps.app import App
+from google.adk.models.base_llm import BaseLlm
 from google.adk.runners import Runner
 from google.adk.sessions.session import Session
 from google.adk.sessions.sqlite_session_service import SqliteSessionService
@@ -49,6 +54,7 @@ APP = "spike-aurora"
 USUARIO = "ap-302"
 CHAVE_APARTAMENTO = "apartamento"
 CONFIRMACAO = "adk_request_confirmation"
+MODO_REAL = os.environ.get("AURORA_LLM") == "real"
 
 
 # ---------------------------------------------------------------- tools
@@ -81,18 +87,34 @@ def consultar_regulamento(topico: str) -> dict[str, str]:
 # ---------------------------------------------------------------- app
 
 
+def modelo(papel: str, *, transferir: bool) -> str | BaseLlm:
+    """Modelo do agente: Gemini real no modo `real`, roteirizado caso contrário."""
+    if not MODO_REAL:
+        return ScriptedLlm(transferir=transferir)
+    variavel = f"AURORA_MODELO_{papel}"
+    if variavel not in os.environ:
+        raise SystemExit(f"modo real exige {variavel} no ambiente (ver .env.example)")
+    return os.environ[variavel]
+
+
 def construir_app(*, resumable: bool) -> App:
     """Root roteador + sub_agent especialista com a tool que exige confirmação."""
     reservas = LlmAgent(
         name="reservas",
-        model=ScriptedLlm(transferir=False),
-        instruction="Especialista em reservas de áreas comuns.",
+        model=modelo("ESPECIALISTA", transferir=False),
+        instruction=(
+            "Especialista em reservas de áreas comuns. Para reservar, chame a tool "
+            "reservar com a área e a data no formato AAAA-MM-DD. Só diga que a "
+            "reserva foi feita depois que a tool responder."
+        ),
         tools=[FunctionTool(reservar, require_confirmation=True)],
     )
     raiz = LlmAgent(
         name="aurora",
-        model=ScriptedLlm(),
-        instruction="Roteia o morador para o especialista certo.",
+        model=modelo("PRINCIPAL", transferir=True),
+        instruction=(
+            "Roteia o morador para o especialista certo. Pedidos de reserva vão para reservas."
+        ),
         sub_agents=[reservas],
     )
     return App(
@@ -169,7 +191,10 @@ async def cmd_abrir() -> None:
     sessao = await runner.session_service.create_session(
         app_name=APP, user_id=USUARIO, state={CHAVE_APARTAMENTO: "302"}
     )
-    mensagem = types.Content(role="user", parts=[types.Part(text="quero reservar a churrasqueira")])
+    mensagem = types.Content(
+        role="user",
+        parts=[types.Part(text="quero reservar a churrasqueira para 2026-10-20")],
+    )
     async for _ in runner.run_async(user_id=USUARIO, session_id=sessao.id, new_message=mensagem):
         pass
 
@@ -224,14 +249,14 @@ async def cmd_agent_tool() -> None:
     """Garantia 4: os eventos de um AgentTool aparecem na sessão do pai?"""
     regulamento = LlmAgent(
         name="regulamento",
-        model=ScriptedLlm(transferir=False),
-        instruction="Responde só com base no regulamento.",
+        model=modelo("ESPECIALISTA", transferir=False),
+        instruction=("Responde dúvidas sobre o regulamento usando a tool consultar_regulamento."),
         tools=[FunctionTool(consultar_regulamento)],
     )
     raiz = LlmAgent(
         name="aurora",
-        model=ScriptedLlm(transferir=False),
-        instruction="Roteador.",
+        model=modelo("PRINCIPAL", transferir=False),
+        instruction="Para dúvidas sobre o regulamento, use a tool regulamento.",
         tools=[AgentTool(agent=regulamento)],
     )
     app = App(
